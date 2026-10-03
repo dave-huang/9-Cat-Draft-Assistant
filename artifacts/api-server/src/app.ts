@@ -1,5 +1,4 @@
 import express, { type Express } from "express";
-import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -25,7 +24,8 @@ app.use(
     },
   }),
 );
-app.use(cors());
+// Browser API calls are same-origin through the shared artifact proxy.
+// Never allow arbitrary sites to read connection status or private leagues.
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -1,11 +1,11 @@
 ---
 name: Yahoo Fantasy connection
-description: Avoid the misleading default domain in Yahoo connector setup for fantasy league access.
+description: Distinguish Fantasy OAuth hosts and permissions; do not infer a scope or pop-up error from a pre-sign-in setup failure.
 ---
 
 For Fantasy Sports access, enter `fantasysports.yahooapis.com` as the Yahoo connector's API Domain, with no scheme or trailing slash. The `api.login.yahoo.com` example shown in the connection form serves the identity API, not fantasy leagues. However, `api.login.yahoo.com` is also the correct OAuth host: authorization uses `/oauth2/request_auth`, and server-side token exchange uses `/oauth2/get_token`. Do not confuse the resource API host with the authorization host.
 
-The correct API Domain does not establish that Fantasy permissions were granted. Connector documentation lists `openid` as the default, while Fantasy reads require `fspt-r`. Do not diagnose a generic “Unauthorized” as a missing scope without knowing where it occurred. An error inside Replit's API Domain setup before Yahoo sign-in is not evidence of a rejected Yahoo password or a missing grant on an already-authorized connection. A subsequent OAuth pop-up failure can be secondary to the setup error; it does not by itself prove a browser pop-up blocker caused the failure.
+The correct API Domain does not establish that Fantasy permissions were granted. Connector documentation lists `openid` as the default, while Fantasy reads require `fspt-r`. Do not diagnose a generic “Unauthorized” as a missing scope without knowing where it occurred. An error inside Replit's API Domain setup before Yahoo sign-in is not evidence of a rejected Yahoo password or a missing grant on an already-authorized connection. A subsequent OAuth pop-up failure can be secondary to the setup error; it does not by itself prove a browser pop-up blocker caused the failure. Refreshing, signing out/in, allowing pop-ups and the account-level Integrations route also failed to resolve that setup failure; its root cause remains unverified.
 
 **Why:** Correct-host setup continued to fail before Yahoo sign-in, and a subsequent pop-up failure message still did not establish the root cause. Distinguishing the stages prevents unsupported password, scope, or browser diagnoses.
 

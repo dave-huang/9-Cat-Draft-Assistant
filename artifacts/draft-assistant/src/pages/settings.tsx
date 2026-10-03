@@ -3,6 +3,7 @@ import { Download, Plus, X } from 'lucide-react';
 import { useDraft } from '@/hooks/use-draft';
 import type { RosterSlot } from '@/lib/draft-types';
 import { CSV_TEMPLATE } from '@/lib/projections';
+import { YahooConnection } from '@/components/YahooConnection';
 import { btn, ConfirmButton, errMsg, field, Notice, Panel } from '@/components/bits';
 
 const SLOT_OPTIONS: RosterSlot[] = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL', 'BN'];
@@ -174,10 +175,7 @@ export default function Settings() {
           <div className="mt-2"><Msg m={rm} /></div>
         </Panel>
 
-        <Panel title="Yahoo connection">
-          <p className="text-sm" data-testid="text-yahoo-status"><strong>Not connected.</strong> Manual mode: you record each pick yourself.</p>
-          <p className="mt-1 text-xs text-muted-foreground">If you want a live Yahoo connection later, ask for it in the Replit chat. Nothing here connects to Yahoo.</p>
-        </Panel>
+        <YahooConnection />
 
         <Panel title="How recommendations work">
           <ul className="space-y-2 text-sm leading-relaxed">

@@ -4,13 +4,14 @@ A personal live-draft companion for Yahoo Fantasy Basketball head-to-head nine-c
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- API managed workflow: `artifacts/api-server: API Server` (uses its injected `PORT`)
 - Frontend managed workflow: `artifacts/draft-assistant: web`
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- The draft assistant is client-only and requires no secrets or database.
+- Manual drafting stays browser-local and requires no Yahoo credentials. The optional Yahoo connection uses the API server and PostgreSQL.
+- `pnpm --filter @workspace/api-server run test:yahoo` — synthetic-provider security, state, encryption and HTTP flow tests; no real Yahoo calls
 
 ## Stack
 
@@ -35,6 +36,7 @@ A personal live-draft companion for Yahoo Fantasy Basketball head-to-head nine-c
 - Use a client-side shared store and downloadable JSON backups for the personal manual draft assistant. **Why:** it should be usable during a draft without accounts, network latency, or a successful Yahoo connection. Browser storage is device/origin-specific, not cloud sync.
 - Clearly separate illustrative demo data from supplied season forecasts. **Why:** made-up or stale projections can cause irreversible bad draft picks. Importing a CSV validates its structure, not its forecasting accuracy.
 - Use stable draftable-pool baselines rather than renormalizing after each player is taken. **Why:** changing baselines would make roster category strength shift even when the user's roster has not changed.
+- Use direct, app-owned Yahoo OAuth rather than the managed connector. Keep tokens encrypted on the server and browser-bound, separate from draft backups. **Why:** the user selected direct authorization after repeated connector setup failures; the manual draft must remain independent.
 
 ## Product
 
@@ -50,6 +52,9 @@ The user's currently requested draft season is 2026–27, explicitly confirmed b
 - Never represent demo player stats, teams, eligibility, ADP, or availability as verified current-season data.
 - Projection CSV numbers are per-game averages; include projected games and makes/attempts for both shooting percentages.
 - Changing draft order or replacing projections after drafting requires an explicit reset; export a backup first.
+- Moving from preview to the published URL changes the browser storage origin. Export the existing draft backup and restore it on the published site before drafting there.
+- Yahoo setup needs a published HTTPS callback ending in `/api/yahoo/callback`, a Yahoo Web Application with private Fantasy Sports Read (`fspt-r`), `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET`, `YAHOO_REDIRECT_URI`, and a strong `SESSION_SECRET`. Configure credentials through Secrets, not source files. Start authorization from the published app in its own browser tab, not an embedded preview.
+- Yahoo connection status and NBA reads are implemented, but real-account access is not verified until credentials and a public callback are configured. Do not claim automatic pick sync: it is not implemented and live draft-result freshness remains unverified.
 
 ## Pointers
 

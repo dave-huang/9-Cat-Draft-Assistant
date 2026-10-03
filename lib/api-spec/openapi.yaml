@@ -11,6 +11,156 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /yahoo/status:
+    get:
+      operationId: getYahooStatus
+      tags: [yahoo]
+      summary: Direct Yahoo connection and configuration status
+      responses:
+        "200":
+          description: Status for this browser session; no OAuth credentials returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooStatus"
+        "503":
+          description: Connection storage unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+  /yahoo/start:
+    post:
+      operationId: startYahooAuthorization
+      tags: [yahoo]
+      summary: Start browser-bound, read-only Yahoo authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YahooConsent"
+      responses:
+        "200":
+          description: Navigate the top-level browser to this Yahoo authorization URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooAuthorization"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+        "403":
+          description: Invalid browser session, origin or CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+        "429":
+          description: Too many authorization attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+        "503":
+          description: Missing configuration or unavailable storage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+  /yahoo/callback:
+    get:
+      operationId: completeYahooAuthorization
+      tags: [yahoo]
+      summary: Yahoo OAuth callback; exchanges code on the server
+      parameters:
+        - in: query
+          name: state
+          schema: { type: string }
+        - in: query
+          name: code
+          schema: { type: string }
+        - in: query
+          name: error
+          schema: { type: string }
+      responses:
+        "302":
+          description: Return to app Settings with a safe result code
+        "400":
+          description: Invalid or expired authorization attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+        "503":
+          description: Missing configuration or unavailable storage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+  /yahoo/connection:
+    delete:
+      operationId: disconnectYahoo
+      tags: [yahoo]
+      summary: Delete this browser's saved Yahoo credentials without changing its draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YahooConsent"
+      responses:
+        "200":
+          description: Saved connection removed locally; revoke provider permission in Yahoo if desired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooDisconnected"
+        "403":
+          description: Invalid browser session, origin or CSRF token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+        "503":
+          description: Connection storage unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+  /yahoo/leagues:
+    get:
+      operationId: getYahooLeagues
+      tags: [yahoo]
+      summary: Verify read access and list this session's NBA leagues
+      responses:
+        "200":
+          description: Yahoo league data, fetched using server-held tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooLeagues"
+        "401":
+          description: Yahoo connection required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+        "502":
+          description: Yahoo API or token exchange failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+        "503":
+          description: Connection storage unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
   /healthz:
     get:
       operationId: healthCheck
@@ -26,6 +176,58 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    YahooStatus:
+      type: object
+      required: [configured, connected, missingConfig, redirectUri, connectedAt, csrfToken]
+      properties:
+        configured: { type: boolean }
+        connected: { type: boolean }
+        missingConfig:
+          type: array
+          items: { type: string }
+        redirectUri: { type: [string, "null"] }
+        connectedAt: { type: [string, "null"] }
+        csrfToken: { type: [string, "null"] }
+    YahooConsent:
+      type: object
+      required: [csrfToken]
+      properties:
+        csrfToken: { type: string, minLength: 1, maxLength: 200 }
+    YahooAuthorization:
+      type: object
+      required: [authorizationUrl]
+      properties:
+        authorizationUrl: { type: string }
+    YahooDisconnected:
+      type: object
+      required: [disconnected]
+      properties:
+        disconnected: { type: boolean }
+    YahooError:
+      type: object
+      required: [error, code]
+      properties:
+        error: { type: string }
+        code: { type: string }
+    YahooLeague:
+      type: object
+      required: [key, name, season, draftStatus, teamCount, scoringType]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        season: { type: string }
+        draftStatus: { type: string }
+        teamCount: { type: integer }
+        scoringType: { type: string }
+    YahooLeagues:
+      type: object
+      required: [leagues, checkedAt]
+      properties:
+        leagues:
+          type: array
+          items:
+            $ref: "#/components/schemas/YahooLeague"
+        checkedAt: { type: string }
     HealthStatus:
       type: object
       properties:

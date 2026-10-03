@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { purgeExpiredYahooSessions } from "./lib/yahoo-store";
 
 const rawPort = process.env["PORT"];
 
@@ -14,6 +15,13 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// Delete expired credentials even when no one starts a new authorization.
+const purge = () => purgeExpiredYahooSessions().catch(() => {
+  logger.warn("Expired Yahoo connection cleanup is temporarily unavailable");
+});
+void purge();
+setInterval(() => { void purge(); }, 15 * 60 * 1000).unref();
 
 app.listen(port, (err) => {
   if (err) {
