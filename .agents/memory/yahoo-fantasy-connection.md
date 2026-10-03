@@ -3,10 +3,18 @@ name: Yahoo Fantasy connection
 description: Avoid the misleading default domain in Yahoo connector setup for fantasy league access.
 ---
 
-For Fantasy Sports access, enter `fantasysports.yahooapis.com` as the Yahoo connector's API Domain, with no scheme or trailing slash. The `api.login.yahoo.com` example shown in the connection form is for account identity, not fantasy leagues.
+For Fantasy Sports access, enter `fantasysports.yahooapis.com` as the Yahoo connector's API Domain, with no scheme or trailing slash. The `api.login.yahoo.com` example shown in the connection form serves the identity API, not fantasy leagues. However, `api.login.yahoo.com` is also the correct OAuth host: authorization uses `/oauth2/request_auth`, and server-side token exchange uses `/oauth2/get_token`. Do not confuse the resource API host with the authorization host.
 
 The correct API Domain does not establish that Fantasy permissions were granted. Connector documentation lists `openid` as the default, while Fantasy reads require `fspt-r`. Do not diagnose a generic “Unauthorized” as a missing scope without knowing where it occurred. An error inside Replit's API Domain setup before Yahoo sign-in is not evidence of a rejected Yahoo password or a missing grant on an already-authorized connection. A subsequent OAuth pop-up failure can be secondary to the setup error; it does not by itself prove a browser pop-up blocker caused the failure.
 
 **Why:** Correct-host setup continued to fail before Yahoo sign-in, and a subsequent pop-up failure message still did not establish the root cause. Distinguishing the stages prevents unsupported password, scope, or browser diagnoses.
 
 **How to apply:** When helping configure Yahoo, use the Fantasy Sports host and ensure the read grant includes `fspt-r`. Re-read current integration notes before changing setup. Guide the setup, Yahoo sign-in, consent, and return-to-Replit stages distinctly. For a pre-sign-in setup failure, distinguish session or workspace permission issues from connector configuration problems; do not keep reopening the identical failed flow or promise a scope change will fix it. After authorization, verify an authenticated NBA-league read. League/draft endpoints being exposed does not establish that picks update during live drafts; test freshness before promising automatic sync.
+
+Yahoo requires the OAuth application's registration to enable private Fantasy Sports data access; an API Domain field does not configure the application credentials or permissions. With a managed connector, the connector owner supplies this registration, not each person signing in.
+
+**Why:** Yahoo's Fantasy documentation explicitly requires an application registration with Fantasy Read access, while the connector exposes a resource-domain choice that can appear to be the entire setup.
+
+**How to apply:** Check the actual OAuth configuration or a sanitized failure code before claiming a specific root cause. Replit documents a separate account-level sign-in route at Workspace home → Integrations → All integrations, which can distinguish a chat-popup failure from a general connector failure. Replit's documented bring-your-own OAuth configuration for existing connectors is Enterprise-only; do not promise a personal Yahoo app can be pasted into the default API Domain dialog. Recheck current platform documentation before recommending that route.
+
+Sources: [Yahoo Fantasy setup](https://sports.yahoo.com/developer/docs/), [Yahoo authorization-code flow](https://developer.yahoo.com/oauth2/guide/flows_authcode/), [Replit connector configuration](https://docs.replit.com/features/integrations/overview#configuring-oauth-app-with-replit), [Replit integration management](https://docs.replit.com/replitai/managing-connectors).
