@@ -1,15 +1,16 @@
-# [Project name]
+# 9-Cat Draft Assistant
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A personal live-draft companion for Yahoo Fantasy Basketball head-to-head nine-category leagues.
 
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- Frontend managed workflow: `artifacts/draft-assistant: web`
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- The draft assistant is client-only and requires no secrets or database.
 
 ## Stack
 
@@ -22,23 +23,32 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/draft-assistant/src/lib/draft-types.ts` — domain contracts
+- `artifacts/draft-assistant/src/lib/draft-engine.ts` — nine-category ranking and roster matching
+- `artifacts/draft-assistant/src/lib/projections.ts` — CSV and draft backup validation
+- `artifacts/draft-assistant/src/hooks/use-draft.ts` — shared browser state and persistence
+- `artifacts/draft-assistant/src/pages/` — live draft, roster, and settings
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Keep all nine categories positively weighted; increase attention to weak categories only within a cap. **Why:** the user explicitly does not want a punt strategy.
+- Use a client-side shared store and downloadable JSON backups for the personal manual draft assistant. **Why:** it should be usable during a draft without accounts, network latency, or a successful Yahoo connection. Browser storage is device/origin-specific, not cloud sync.
+- Clearly separate illustrative demo data from supplied season forecasts. **Why:** made-up or stale projections can cause irreversible bad draft picks. Importing a CSV validates its structure, not its forecasting accuracy.
+- Use stable draftable-pool baselines rather than renormalizing after each player is taken. **Why:** changing baselines would make roster category strength shift even when the user's roster has not changed.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Manual snake-draft tracking, roster-aware nine-category recommendations, positional filters, shortlist, pick undo, editable league settings, CSV projection imports, and browser persistence with JSON backup/restore. This app neither auto-submits Yahoo picks nor promises calibrated season win odds. Yahoo synchronization requires a successful connection and verification of live draft-result freshness.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+The user plays a standard Head-to-Head 9 Category Yahoo Fantasy Basketball league and does not want to punt any categories.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Never represent demo player stats, teams, eligibility, ADP, or availability as verified current-season data.
+- Projection CSV numbers are per-game averages; include projected games and makes/attempts for both shooting percentages.
+- Changing draft order or replacing projections after drafting requires an explicit reset; export a backup first.
 
 ## Pointers
 

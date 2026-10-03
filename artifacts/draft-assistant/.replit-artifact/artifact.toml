@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "9-Cat Draft Assistant"
+description = "A live companion for Yahoo Fantasy Basketball drafts. Track every pick, import season projections, and get balanced nine-category recommendations without a punt strategy."
+version = "1.0.0"
+id = "artifacts/draft-assistant"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21686
+
+[services.development]
+run = "pnpm --filter @workspace/draft-assistant run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/draft-assistant", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/draft-assistant/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21686"
+BASE_PATH = "/"

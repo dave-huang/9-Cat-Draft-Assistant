@@ -1,0 +1,1 @@
+- [Yahoo Fantasy connection](yahoo-fantasy-connection.md) — the API-domain setup example is for identity, not Fantasy Sports.
