@@ -18,3 +18,9 @@ Yahoo requires the OAuth application's registration to enable private Fantasy Sp
 **How to apply:** Check the actual OAuth configuration or a sanitized failure code before claiming a specific root cause. Replit documents a separate account-level sign-in route at Workspace home → Integrations → All integrations, which can distinguish a chat-popup failure from a general connector failure. Replit's documented bring-your-own OAuth configuration for existing connectors is Enterprise-only; do not promise a personal Yahoo app can be pasted into the default API Domain dialog. Recheck current platform documentation before recommending that route.
 
 Sources: [Yahoo Fantasy setup](https://sports.yahoo.com/developer/docs/), [Yahoo authorization-code flow](https://developer.yahoo.com/oauth2/guide/flows_authcode/), [Replit connector configuration](https://docs.replit.com/features/integrations/overview#configuring-oauth-app-with-replit), [Replit integration management](https://docs.replit.com/replitai/managing-connectors).
+
+Yahoo's current [Fantasy developer portal](https://sports.yahoo.com/developer) describes submitting an [access application](https://sports.yahoo.com/developer/access/), review and approval. Possessing a Yahoo client ID and secret alone does not establish Fantasy API read permission.
+
+**Why:** The current portal adds an access-review requirement that older application-registration instructions may not reflect. This does not establish the cause of the earlier managed-connector failure.
+
+**How to apply:** Recheck the portal and actual grants when enabling access. Verify an authenticated Fantasy read before treating registration as complete. The documented `draftresults` resource is not itself a guarantee of live-draft latency; measure observed pick delay before presenting a live-sync claim.
