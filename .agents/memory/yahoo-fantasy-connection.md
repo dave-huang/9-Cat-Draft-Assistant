@@ -24,3 +24,9 @@ Yahoo's current [Fantasy developer portal](https://sports.yahoo.com/developer) d
 **Why:** The current portal adds an access-review requirement and access restrictions that older application-registration instructions may not reflect. This does not establish the cause of a generic authorization error or the earlier managed-connector failure.
 
 **How to apply:** Recheck the portal, application approval and actual grants when enabling access. Prefer the current access policy over older permission-picker instructions. Verify an authenticated Fantasy read before treating registration as complete. The documented `draftresults` resource is not itself a guarantee of live-draft latency; measure observed pick delay before presenting a live-sync claim.
+
+For app-owned OAuth, the user reports that Fantasy Sports Read access is enabled or approved. Treat that as reported registration status, not proof of a successful authenticated league read.
+
+**Why:** The user confirmed access while diagnosing a generic Yahoo error appearing immediately before any sign-in or consent screen. That error does not establish that the reported approval is missing.
+
+**How to apply:** Check callback matching and whether the credential is the Client ID/Consumer Key rather than the App ID before asking the user to repeat the access application. Recheck approval if the Yahoo application changes; do not claim real account access is verified until a league read succeeds.
