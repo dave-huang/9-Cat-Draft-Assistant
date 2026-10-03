@@ -43,6 +43,7 @@ Manual snake-draft tracking, roster-aware nine-category recommendations, positio
 ## User preferences
 
 The user plays a standard Head-to-Head 9 Category Yahoo Fantasy Basketball league and does not want to punt any categories.
+The user's currently requested draft season is 2026–27, explicitly confirmed by the user. Reconfirm for later drafts rather than assuming this remains current.
 
 ## Gotchas
 

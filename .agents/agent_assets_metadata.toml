@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "xN83E5fjZvJHBAouaZb5r"
+uri = "file://artifacts/draft-assistant/docs/projection-export-guide-2026-27.html"
+type = "html"
+title = "2026–27 projection export checklist"
+description = "Source comparison, questions to ask before buying, exact required fields and safe import steps. This guide contains no projection dataset."
+logical_id = "78dfcdd4-e799-4383-8b33-9eedd4efcfc9"
+content_hash = "sha256:efb6d714c749ab2c21294c828b436e2db509a1a61dcb74a94e42c184f1a0e5c4"
+size = 11239
+mtime_ms = 1790993662730
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:da21b2c4-dd26-4de2-94e6-506203113737/78dfcdd4-e799-4383-8b33-9eedd4efcfc9/f895c540-939b-4e3a-abab-01ca3c78c62d"
+storage_version_token = "1790993713678617"
+content_type = "text/html"

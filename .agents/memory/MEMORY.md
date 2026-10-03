@@ -1,1 +1,2 @@
 - [Yahoo Fantasy connection](yahoo-fantasy-connection.md) — the API-domain setup example is for identity, not Fantasy Sports.
+- [Projection access checks](projection-access-checks.md) — verify current row limits and export permissions; public filters and older “free” guides can be misleading.
