@@ -135,17 +135,41 @@ export function parseYahooLeagues(json: unknown): YahooLeague[] {
   return [...leagues.values()].sort((a, b) => b.season.localeCompare(a.season) || a.name.localeCompare(b.name));
 }
 
+async function fantasyAccessError(response: Response): Promise<YahooConnectionError> {
+  // Inspect a bounded body only to select fixed, safe diagnostics. Never expose
+  // or log provider descriptions, which can contain reflected credentials.
+  let json: unknown;
+  try { json = await readJson(response); } catch { json = null; }
+  const error = isObject(json) ? json.error : null;
+  const details = typeof error === "string" ? error :
+    isObject(error) ? [error.description, error.code, error.error]
+      .filter((value): value is string => typeof value === "string").join(" ") : "";
+
+  if (/\bthis application is not authorized\b/i.test(details)) {
+    return new YahooConnectionError("fantasy_app_not_authorized",
+      `Yahoo Fantasy API returned HTTP ${response.status} and explicitly rejected this application's access. Sign-in succeeded, but Fantasy API access is not accepted. Confirm Yahoo's approval applies to the same registered app and Client ID; reconnecting alone may not resolve this.`);
+  }
+  if (/\badditional_authorization_required\b/i.test(details)) {
+    return new YahooConnectionError("fantasy_additional_authorization_required",
+      `Yahoo Fantasy API returned HTTP ${response.status} and requires additional Fantasy authorization. Successful sign-in is not sufficient. Confirm this application's Fantasy API access and reconnect after its permissions or provisioning are corrected.`);
+  }
+  if (/\b(?:insufficient_scope|invalid_scope)\b/i.test(details)) {
+    return new YahooConnectionError("fantasy_scope_denied",
+      `Yahoo Fantasy API returned HTTP ${response.status} and reported an insufficient permission scope. Confirm Fantasy Sports Read access for this application's Client ID, then reconnect after permissions are corrected.`);
+  }
+  if (response.status === 401) {
+    return new YahooConnectionError("access_expired", "Yahoo requires renewed authorization.", 401);
+  }
+  return new YahooConnectionError("fantasy_read_denied",
+    "Yahoo Fantasy API returned HTTP 403 (Forbidden). Sign-in succeeded, but NBA league access was refused. This response does not establish whether app provisioning, permissions or another Yahoo access restriction caused it. Confirm current Fantasy API access for this registered app.");
+}
+
 export async function fetchYahooLeagues(accessToken: string, fetcher: typeof fetch = fetch): Promise<YahooLeague[]> {
   const response = await providerFetch(LEAGUES_URL, {
     headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
   }, fetcher);
-  if (response.status === 401) {
-    await response.body?.cancel();
-    throw new YahooConnectionError("access_expired", "Yahoo requires renewed authorization.", 401);
-  }
-  if (response.status === 403) {
-    await response.body?.cancel();
-    throw new YahooConnectionError("fantasy_read_denied", "Yahoo denied Fantasy Sports reads. Enable Fantasy Sports Read/private data in the application and reconnect.");
+  if (response.status === 401 || response.status === 403) {
+    throw await fantasyAccessError(response);
   }
   if (!response.ok) {
     await response.body?.cancel();

@@ -21,6 +21,11 @@ const ERRORS: Record<string, string> = {
   provider_unavailable: 'Yahoo is unavailable right now. Try again shortly.',
 };
 
+const FANTASY_ACCESS_ERRORS = new Set([
+  'fantasy_read_denied', 'fantasy_app_not_authorized',
+  'fantasy_additional_authorization_required', 'fantasy_scope_denied',
+]);
+
 type CallbackResult = { ok: boolean; text: string } | null;
 
 function readCallback(): CallbackResult {
@@ -49,6 +54,11 @@ function safeErr(e: unknown, fallback: string): string {
   const d = (e as { data?: { error?: unknown; code?: unknown } } | null)?.data;
   if (d && typeof d.error === 'string') return typeof d.code === 'string' ? `${d.error} (${d.code})` : d.error;
   return fallback;
+}
+
+function fantasyAccessDenied(e: unknown): boolean {
+  const code = (e as { data?: { code?: unknown } } | null)?.data?.code;
+  return typeof code === 'string' && FANTASY_ACCESS_ERRORS.has(code);
 }
 
 function isYahooAuthUrl(s: string): boolean {
@@ -185,7 +195,12 @@ export function YahooConnection() {
             {leagues.isLoading ? (
               <div className="space-y-2" aria-busy><div className="h-10 animate-pulse rounded bg-muted" /><div className="h-10 animate-pulse rounded bg-muted" /></div>
             ) : leagues.isError ? (
-              <Notice tone="error" testId="text-yahoo-leagues-error">Yahoo league read failed: {safeErr(leagues.error, 'request failed.')} Try again, or reconnect if access was revoked.</Notice>
+              <Notice tone="error" testId="text-yahoo-leagues-error">
+                Yahoo league read failed: {safeErr(leagues.error, 'request failed.')}
+                {fantasyAccessDenied(leagues.error)
+                  ? ' Your saved connection is still present. Check Yahoo application access before repeatedly reconnecting, then use Verify again.'
+                  : ' Try again, or reconnect if access was revoked.'}
+              </Notice>
             ) : leagues.data && leagues.data.leagues.length === 0 ? (
               <Notice tone="info" testId="text-yahoo-leagues-empty">Yahoo accepted the connection but returned no NBA leagues for this account. Nothing is being made up; check that you joined a league on this Yahoo account.</Notice>
             ) : (

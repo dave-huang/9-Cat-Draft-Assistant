@@ -170,7 +170,13 @@ router.get("/yahoo/leagues", async (req, res) => {
     if (!id) throw new YahooConnectionError("not_connected", "Connect Yahoo before checking leagues.", 401);
     const leagues = await readConnectedYahooLeagues(hashOpaqueValue(id), config);
     res.json(GetYahooLeaguesResponse.parse({ leagues, checkedAt: new Date().toISOString() }));
-  } catch (error) { sendSafeError(res, error); }
+  } catch (error) {
+    if (error instanceof YahooConnectionError) {
+      // Only our classified code is logged, never the provider body or tokens.
+      req.log?.warn({ yahooErrorCode: error.code }, "Yahoo NBA league read failed");
+    }
+    sendSafeError(res, error);
+  }
 });
 
 return router;

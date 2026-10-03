@@ -126,6 +126,35 @@ test("NBA reads parse Yahoo numbered JSON and distinguish empty from malformed o
     (error: unknown) => error instanceof YahooConnectionError && error.code === "fantasy_read_denied");
 });
 
+test("Fantasy denials classify app access, additional authorization and scope without leaking provider data", async () => {
+  const cases = [
+    { status: 403, body: { error: { description: "This application is not authorized to perform this action. must-never-leak" } }, code: "fantasy_app_not_authorized" },
+    { status: 401, body: { error: { description: 'OAuth oauth_problem="additional_authorization_required", realm="yahooapis.com" must-never-leak' } }, code: "fantasy_additional_authorization_required" },
+    { status: 403, body: { error: "additional_authorization_required", error_description: "must-never-leak" }, code: "fantasy_additional_authorization_required" },
+    { status: 403, body: { error: { code: "insufficient_scope", description: "must-never-leak" } }, code: "fantasy_scope_denied" },
+    { status: 401, body: { error: "invalid_scope" }, code: "fantasy_scope_denied" },
+    { status: 401, body: { error: { description: 'OAuth oauth_problem="token_rejected" must-never-leak' } }, code: "access_expired" },
+    { status: 403, body: { error: { description: "Unclassified refusal must-never-leak" } }, code: "fantasy_read_denied" },
+  ];
+  for (const fixture of cases) {
+    await assert.rejects(fetchYahooLeagues(tokens.accessToken, async () => Response.json(fixture.body, { status: fixture.status })),
+      (error: unknown) => {
+        assert.ok(error instanceof YahooConnectionError);
+        assert.equal(error.code, fixture.code);
+        assert.ok(!error.message.includes("must-never-leak"));
+        assert.ok(!error.message.includes(tokens.accessToken));
+        if (fixture.code === "access_expired") assert.equal(error.status, 401);
+        else assert.ok(error.message.includes(`HTTP ${fixture.status}`));
+        return true;
+      });
+  }
+  for (const body of ["<html>must-never-leak</html>", JSON.stringify({ error: { description: "must-never-leak" } })]) {
+    await assert.rejects(fetchYahooLeagues(tokens.accessToken, async () => new Response(body, { status: 403 })),
+      (error: unknown) => error instanceof YahooConnectionError &&
+        error.code === "fantasy_read_denied" && !error.message.includes("must-never-leak"));
+  }
+});
+
 test("database state is browser-bound, expiring and atomically single-use", async () => {
   const id = hashOpaqueValue(randomOpaqueValue());
   const otherId = hashOpaqueValue(randomOpaqueValue());
