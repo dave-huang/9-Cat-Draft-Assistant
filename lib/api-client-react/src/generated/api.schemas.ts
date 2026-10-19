@@ -5,6 +5,45 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type DraftEligibilityPlayerPositionsItem = typeof DraftEligibilityPlayerPositionsItem[keyof typeof DraftEligibilityPlayerPositionsItem];
+
+
+export const DraftEligibilityPlayerPositionsItem = {
+  PG: 'PG',
+  SG: 'SG',
+  SF: 'SF',
+  PF: 'PF',
+  C: 'C',
+} as const;
+
+export interface DraftEligibilityPlayer {
+  /** @pattern ^[0-9]+$ */
+  yahooId: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /**
+     * @minItems 1
+     * @maxItems 5
+     */
+  positions: DraftEligibilityPlayerPositionsItem[];
+}
+
+export interface DraftEligibilityFeed {
+  /**
+     * @minItems 150
+     * @maxItems 3000
+     */
+  players: DraftEligibilityPlayer[];
+  season: string;
+  /** @pattern ^[0-9]+$ */
+  gameId: string;
+  fetchedAt: string;
+  source: string;
+}
+
 export type DraftProjectionPlayerPositionsItem = typeof DraftProjectionPlayerPositionsItem[keyof typeof DraftProjectionPlayerPositionsItem];
 
 

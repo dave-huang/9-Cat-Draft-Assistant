@@ -7,6 +7,7 @@ import type { Player, Position, Recommendation } from '@/lib/draft-types';
 import { btn, ConfirmButton, errMsg, field, fmt, Notice, Panel, ZStrip } from '@/components/bits';
 import { InjuryReserveSlots } from '@/components/InjuryReserveSlots';
 import { isPreviousDefaultRoster } from '@/lib/league-roster';
+import { positionSourceLabel } from '@/lib/eligibility';
 
 const FILTERS = ['ALL', 'PG', 'SG', 'G', 'SF', 'PF', 'F', 'C'] as const;
 type Filter = (typeof FILTERS)[number];
@@ -112,7 +113,7 @@ export default function Live() {
       searchRef.current?.focus();
     }, `${owner === 'mine' ? 'Mine' : 'Taken'}: ${name}`);
   const editPositions = (p: Player) => {
-    const input = window.prompt(`Enter ${p.name}'s positions as shown in your Yahoo draft (PG/SG/SF/PF/C). This correction is kept when projections refresh.`, p.positions.join('/'));
+    const input = window.prompt(`Enter ${p.name}'s positions as shown in your Yahoo draft (PG/SG/SF/PF/C). ${p.yahooPositions ? `Yahoo public eligibility: ${p.yahooPositions.join('/')}. ` : ''}Your manual correction takes priority and survives refreshes.`, p.positions.join('/'));
     if (input === null) return;
     const positions = input.toUpperCase().split(/[\/,\s]+/).filter(Boolean);
     if (!positions.length || positions.some(pos => !['PG', 'SG', 'SF', 'PF', 'C'].includes(pos))) {
@@ -182,6 +183,10 @@ export default function Live() {
         {err && <Notice tone="error" testId="text-error">{err}</Notice>}
         {dd.loadingProjections && <Notice tone="info" testId="text-data-loading">Loading this season’s ESPN projections and injury reports. Your saved picks are kept.</Notice>}
         {dd.error && <Notice tone="error" testId="text-injury-error">Data refresh failed: {dd.error}</Notice>}
+        {dd.loadingEligibility && <Notice tone="info" testId="text-eligibility-loading">Checking Yahoo position eligibility. Saved picks and manual corrections are kept.</Notice>}
+        {dd.eligibilityError && <Notice tone="warn" testId="text-eligibility-error">Yahoo eligibility could not be refreshed: {dd.eligibilityError} Saved positions are retained; other sources remain labeled as unverified. <button className="underline" onClick={() => void dd.refreshEligibility()}>Retry Yahoo positions</button></Notice>}
+        {!state.source.isDemo && state.eligibilityFeed && <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground" data-testid="text-yahoo-eligibility">Yahoo eligibility: {state.eligibilityFeed.matchedPlayers}/{state.players.length} matched · {state.players.filter(p => p.positionsVerified).length} manual corrections · checked {new Date(state.eligibilityFeed.checkedAt).toLocaleString()}{state.eligibilityFeed.unmatchedPlayers > 0 && ` · ${state.eligibilityFeed.unmatchedPlayers} unverified`}</div>}
+        {state.players.some(p => p.positionsConflict) && <Notice tone="warn" testId="text-position-conflicts">Yahoo eligibility changes would make some drafted players impossible to slot. Your picks and previous positions were kept. Review players labeled “Check Yahoo” on the Roster page.</Notice>}
         {a.warnings.map((w) => <Notice key={w} tone="warn">{w}</Notice>)}
         {(src.isDemo || !src.updatedAt) && (
           <Notice tone={src.isDemo ? 'warn' : 'info'} testId="text-provenance">
@@ -206,7 +211,7 @@ export default function Live() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-baseline gap-2">
                   <h3 className="text-2xl font-extrabold tracking-tight" data-testid="text-top-name">{top.player.name}</h3>
-                  <span className="font-mono text-xs text-muted-foreground">{top.player.team} / <button className="underline decoration-dotted underline-offset-4" title="Correct eligibility to match Yahoo" onClick={() => editPositions(top.player)} data-testid="button-positions-top">{top.player.positions.join(', ')}</button></span>
+                  <span className="font-mono text-xs text-muted-foreground">{top.player.team} / <button className="underline decoration-dotted underline-offset-4" title="View or manually correct eligibility" onClick={() => editPositions(top.player)} data-testid="button-positions-top">{top.player.positions.join(', ')} <span className="text-[10px]">({positionSourceLabel(top.player, src.isDemo)})</span></button></span>
                   <InjuryBadge p={top.player} />
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
@@ -261,7 +266,7 @@ export default function Live() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                           <span className="font-semibold">{p.name}</span>
-                          <span className="font-mono text-[11px] text-muted-foreground">{p.team} <button className="underline decoration-dotted underline-offset-4" title="Edit positions to match Yahoo" data-testid={`button-positions-${p.id}`} onClick={() => editPositions(p)}>{p.positions.join('/')}{p.positionsVerified ? ' ✓' : ''}</button></span>
+                          <span className="font-mono text-[11px] text-muted-foreground">{p.team} <button className="underline decoration-dotted underline-offset-4" title="View or manually correct eligibility" data-testid={`button-positions-${p.id}`} onClick={() => editPositions(p)}>{p.positions.join('/')} <span className="text-[10px]">({positionSourceLabel(p, src.isDemo)})</span></button></span>
                           <InjuryBadge p={p} />
                           {p.adp !== undefined && <span className="font-mono text-[10px] text-muted-foreground">{src.adpPlatform} ADP {fmt(p.adp)}</span>}
                         </div>

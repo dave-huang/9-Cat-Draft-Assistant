@@ -1,7 +1,10 @@
 import { Link } from 'wouter';
+import { useState } from 'react';
 import { useDraft } from '@/hooks/use-draft';
-import { Notice, Panel, btn, fmt } from '@/components/bits';
+import { Notice, Panel, btn, errMsg, fmt } from '@/components/bits';
 import { InjuryReserveSlots } from '@/components/InjuryReserveSlots';
+import { positionSourceLabel } from '@/lib/eligibility';
+import type { Player, Position } from '@/lib/draft-types';
 
 const STATUS: Record<string, { text: string; cls: string }> = {
   strong: { text: 'Strong', cls: 'bg-accent text-accent-foreground' },
@@ -11,11 +14,22 @@ const STATUS: Record<string, { text: string; cls: string }> = {
 };
 
 export default function Roster() {
-  const { analysis: a, state } = useDraft();
+  const d = useDraft();
+  const { analysis: a, state } = d;
+  const [error, setError] = useState<string | null>(null);
+  const editPositions = (player: Player) => {
+    const value = window.prompt(`Enter ${player.name}'s positions from your Yahoo draft (PG/SG/SF/PF/C). ${player.yahooPositions ? `Yahoo public eligibility: ${player.yahooPositions.join('/')}. ` : ''}Your correction takes priority and survives refreshes.`, player.positions.join('/'));
+    if (value === null) return;
+    const positions = value.toUpperCase().split(/[\/,\s]+/).filter(Boolean);
+    if (!positions.length || positions.some(p => !['PG', 'SG', 'SF', 'PF', 'C'].includes(p))) { setError('Use PG, SG, SF, PF or C, separated by slashes.'); return; }
+    try { d.updatePlayerPositions(player.id, positions as Position[]); setError(null); }
+    catch (e) { setError(errMsg(e)); }
+  };
   const filled = a.rosterAssignment.filter((s) => s.player).length;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Panel title="Roster slots" aside={<span className="font-mono text-xs" data-testid="text-filled">{filled}/{a.rosterAssignment.length}</span>}>
+        {error && <Notice tone="error" testId="text-roster-position-error">{error}</Notice>}
         {a.roster.length === 0 && (
           <div className="mb-3 rounded-md border border-dashed p-4 text-sm text-muted-foreground" data-testid="empty-roster">
             You have not drafted anyone yet. Your picks will fill slots here in order of eligibility.
@@ -27,7 +41,7 @@ export default function Roster() {
             <li key={i} className="flex items-center gap-3 py-2" data-testid={`row-slot-${i}`}>
               <span className="w-10 rounded bg-secondary py-0.5 text-center font-mono text-xs font-semibold">{s.slot}</span>
               {s.player ? (
-                <span className="min-w-0 truncate text-sm font-semibold">{s.player.name} <span className="font-mono text-[11px] font-normal text-muted-foreground">{s.player.team} {s.player.positions.join('/')}</span></span>
+                 <span className="min-w-0 text-sm font-semibold">{s.player.name} <span className="font-mono text-[11px] font-normal text-muted-foreground">{s.player.team} <button className="underline decoration-dotted underline-offset-4" title="View or manually correct positions from your Yahoo draft" data-testid={`button-roster-positions-${s.player.id}`} onClick={() => editPositions(s.player!)}>{s.player.positions.join('/')} ({positionSourceLabel(s.player, state.source.isDemo)})</button>{s.player.positionsConflict && <span className="block text-destructive">Yahoo now lists {s.player.yahooPositions?.join('/')}; saved positions were kept to preserve your roster.</span>}</span></span>
               ) : (
                 <span className="text-sm text-muted-foreground">Open</span>
               )}

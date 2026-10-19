@@ -1,12 +1,14 @@
 import { Router, type IRouter } from 'express';
 import { createDraftDataService } from '../lib/draft-data';
+import { createYahooEligibilityService } from '../lib/yahoo-eligibility';
 
 const router: IRouter = Router();
 const service = createDraftDataService();
-for (const name of ['projections', 'injuries'] as const) {
+const feeds = { ...service, eligibility: createYahooEligibilityService() };
+for (const name of ['projections', 'injuries', 'eligibility'] as const) {
   router.get(`/draft-data/${name}`, async (req, res) => {
     res.set('Cache-Control', 'no-store');
-    try { res.json(await service[name]()); }
+    try { res.json(await feeds[name]()); }
     catch {
       // Fixed diagnostics: never reflect third-party response bodies or URLs.
       req.log?.warn({ feed: name }, 'NBA public data feed unavailable');

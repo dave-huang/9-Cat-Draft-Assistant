@@ -23,6 +23,12 @@ export const playerSchema = z.object({
   injurySource: z.string().max(300).optional(),
   injuryReturnDate: z.string().optional(),
   positionsVerified: z.boolean().optional(),
+  positionsSource: z.enum(['Yahoo', 'ESPN', 'Imported', 'Manual']).optional(),
+  yahooId: z.string().regex(/^\d+$/).optional(),
+  yahooPositions: z.array(positionSchema).min(1).max(5).optional(),
+  positionsFetchedAt: z.string().optional(),
+  yahooEligibilityMissing: z.boolean().optional(),
+  positionsConflict: z.boolean().optional(),
 }).refine(p => p.fgm <= p.fga && p.ftm <= p.fta && p.threes <= p.fgm, {
   message: 'Makes cannot exceed attempts; three-point makes cannot exceed field-goal makes.',
 });
@@ -144,6 +150,12 @@ const stateSchema = z.object({
     playerId: z.string(), team: z.number().int().min(0).max(20), overall: z.number().int().positive(),
   })).max(3000),
   shortlist: z.array(z.string()).max(3000),
+  eligibilityFeed: z.object({
+    season: z.string(), source: z.string(), fetchedAt: z.string(), checkedAt: z.string(),
+    totalPlayers: z.number().int().nonnegative().max(3000),
+    matchedPlayers: z.number().int().nonnegative().max(3000),
+    unmatchedPlayers: z.number().int().nonnegative().max(3000),
+  }).optional(),
   injuryFeed: z.object({
     checkedAt: z.string(), source: z.string(), reportUpdatedAt: z.string().optional(),
     matchedPlayers: z.number().int().nonnegative(), totalReports: z.number().int().nonnegative(),

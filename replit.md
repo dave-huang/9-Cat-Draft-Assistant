@@ -10,9 +10,10 @@ A personal live-draft companion for Yahoo Fantasy Basketball head-to-head nine-c
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Manual drafting stays browser-local and requires no Yahoo credentials. Current public ESPN projection/injury feeds use the API server. Legacy Yahoo OAuth remains on the server but is no longer exposed as a setup step.
+- Manual drafting stays browser-local and requires no Yahoo credentials. The API server supplies public ESPN projections/injuries and standard Yahoo eligibility from public Draft Analysis data. Legacy OAuth is not a setup step.
 - `pnpm --filter @workspace/api-server run test:yahoo` — synthetic-provider security, state, encryption and HTTP flow tests; no real Yahoo calls
 - `pnpm --filter @workspace/api-server run test:draft-data` — current-season forecast parsing, zero-three centers, shooting validation, report freshness and request caching
+- `pnpm --filter @workspace/api-server run test:eligibility` — anonymous public Yahoo discovery, actual eligibility, season/format checks, complete pagination, caching and denied-access failures
 - `pnpm --filter @workspace/draft-assistant run test:draft` — nine-category scoring, manual pick correction, eligibility overrides, refresh-safe identities and draft persistence
 
 ## Stack
@@ -40,6 +41,7 @@ A personal live-draft companion for Yahoo Fantasy Basketball head-to-head nine-c
 - Use stable draftable-pool baselines rather than renormalizing after each player is taken. **Why:** changing baselines would make roster category strength shift even when the user's roster has not changed.
 - Prioritize manual Mine/Taken tracking independently of snake order. **Why:** the user explicitly abandoned Yahoo API connection attempts and wants an easy second-screen companion during the Yahoo live draft. Do not restart Yahoo integration work unless asked.
 - Preserve existing draft picks when current data is refreshed, with explicit provenance and separate injury-report times. **Why:** a feed update during a live draft must not erase selections or misrepresent retrieval time as a newly published forecast.
+- Use Yahoo for position eligibility and ESPN for projections, injuries and ADP. Manual position corrections take priority. **Why:** the user explicitly chose Yahoo eligibility after the public, no-sign-in route was verified; ESPN eligibility differs from the Yahoo draft.
 - Keep any legacy Yahoo credentials/tokens secure and out of draft backups; do not delete them as part of a manual-mode UI change. **Why:** abandoning setup is not consent to delete an existing connection.
 
 ## Product
@@ -56,7 +58,10 @@ The user's currently requested draft season is 2026–27, explicitly confirmed b
 - Never represent demo player stats, teams, eligibility, ADP, or availability as verified current-season data.
 - Projection CSV numbers are per-game averages; include projected games and makes/attempts for both shooting percentages.
 - Changing draft order or replacing a CSV pool after drafting requires an explicit reset; export a backup first. Current-feed refreshes preserve picks and player identities.
-- ESPN eligibility and ADP are not Yahoo eligibility and ADP. Position buttons on the board accept manual corrections from the user's Yahoo draft; these survive feed refreshes.
+- Yahoo eligibility is layered independently over ESPN stats and applied by unique normalized player identity. Source labels distinguish Yahoo, manual corrections and unverified fallbacks. Corrections on the board and roster survive refreshes and resets.
+- Use only actual `eligible_positions`, never `eligible_positions_to_add`. Generic G/F/Util roster slots must not be expanded into new PG/SG/SF/PF/C eligibility. Validate the current season, complete pagination and standard position format.
+- If new eligibility would invalidate the already-drafted roster, preserve picks and previous positions and visibly flag the affected players; do not silently drop or unassign them.
+- Public Yahoo data needs no user sign-in, but is not a guaranteed stable API. On failure keep saved positions, show an error, and never relabel ESPN fallbacks as Yahoo-verified. Standard eligibility may differ from commissioner-specific league overrides.
 - Public projection retrieval time is not a forecast publication date. The current ESPN feed does not supply the latter. Show that limitation rather than inventing a date.
 - Injury reports are checked separately every five minutes while the board/settings screen is visible. Absence from the report is unknown, not medical clearance.
 - Moving from preview to the published URL changes the browser storage origin. Export the existing draft backup and restore it on the published site before drafting there.

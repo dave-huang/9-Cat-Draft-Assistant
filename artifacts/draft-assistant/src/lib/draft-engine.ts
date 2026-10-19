@@ -141,7 +141,9 @@ export function analyzeDraft(state: DraftState): DraftAnalysis {
     else reasons.push('A depth option; compare the category tradeoffs before selecting.');
     if (scarce.length) reasons.push(`Fills a scarce ${[...new Set(scarce)].join('/')} position.`);
     const warnings: string[] = [];
-    if (!fillsSlot) warnings.push('Does not fit a remaining roster slot with the imported position eligibility.');
+    if (!fillsSlot) warnings.push('Does not fit a remaining roster slot with the current position eligibility.');
+    if (player.positionsConflict) warnings.push('Yahoo eligibility changed and conflicts with your drafted roster. Saved positions were kept; review them in Yahoo.');
+    else if (player.yahooEligibilityMissing) warnings.push('Not matched in the latest Yahoo eligibility feed. Positions are saved or unverified; confirm them in your Yahoo draft.');
     if (z.ft < -1) warnings.push('Volume-weighted FT% drag; later picks will need to offset it.');
     if (z.fg < -1) warnings.push('Volume-weighted FG% drag; later picks will need to offset it.');
     if (z.turnovers < -1) warnings.push('High turnover burden. Lower turnovers are better.');

@@ -29,6 +29,12 @@ export interface Player {
   injurySource?: string;
   injuryReturnDate?: string;
   positionsVerified?: boolean;
+  positionsSource?: 'Yahoo' | 'ESPN' | 'Imported' | 'Manual';
+  yahooId?: string;
+  yahooPositions?: Position[];
+  positionsFetchedAt?: string;
+  yahooEligibilityMissing?: boolean;
+  positionsConflict?: boolean;
 }
 export interface LeagueSettings {
   name: string;
@@ -63,6 +69,15 @@ export interface DraftState {
   source: ProjectionSource;
   picks: Pick[];
   shortlist: string[];
+  eligibilityFeed?: {
+    season: string;
+    source: string;
+    fetchedAt: string;
+    checkedAt: string;
+    totalPlayers: number;
+    matchedPlayers: number;
+    unmatchedPlayers: number;
+  };
   injuryFeed?: {
     checkedAt: string;
     source: string;

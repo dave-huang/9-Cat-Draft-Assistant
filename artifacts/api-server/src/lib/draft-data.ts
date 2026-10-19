@@ -120,7 +120,7 @@ async function providerJson(url: string, fetcher: typeof fetch, headers?: Record
 }
 
 /** Coalesce concurrent anonymous requests; never label a cached failure as data. */
-function cached<T>(ttl: number, load: () => Promise<T>): () => Promise<T> {
+export function cached<T>(ttl: number, load: () => Promise<T>): () => Promise<T> {
   let value: T | undefined, until = 0, pending: Promise<T> | undefined;
   let failureUntil = 0;
   return async () => {

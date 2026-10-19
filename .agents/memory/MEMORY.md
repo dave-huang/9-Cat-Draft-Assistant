@@ -1,3 +1,3 @@
-- [Yahoo Fantasy connection](yahoo-fantasy-connection.md) — distinguish OAuth and resource hosts; pre-sign-in connector failures did not establish a missing scope or pop-up blocker.
+- [Yahoo access and eligibility](yahoo-fantasy-connection.md) — public standard eligibility works independently of private-league OAuth; rendered pages and raw HTML differ.
 - [Projection access checks](projection-access-checks.md) — verify current row limits and export permissions; public filters and older “free” guides can be misleading.
 - [League roster](league-roster.md) — user's Yahoo layout: 12 draftable spots plus 2 IL reserves; mock drafts need repeatable, confirmed restarts.

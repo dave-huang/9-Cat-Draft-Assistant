@@ -9,6 +9,33 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Standard Yahoo NBA position eligibility from the public Draft Analysis data
+ */
+export const getDraftEligibilityResponsePlayersItemYahooIdRegExp = new RegExp('^[0-9]+$');
+export const getDraftEligibilityResponsePlayersItemNameMax = 120;
+
+export const getDraftEligibilityResponsePlayersItemPositionsMax = 5;
+
+export const getDraftEligibilityResponsePlayersMin = 150;
+export const getDraftEligibilityResponsePlayersMax = 3000;
+
+export const getDraftEligibilityResponseGameIdRegExp = new RegExp('^[0-9]+$');
+
+
+export const GetDraftEligibilityResponse = zod.object({
+  "players": zod.array(zod.object({
+  "yahooId": zod.string().regex(getDraftEligibilityResponsePlayersItemYahooIdRegExp),
+  "name": zod.string().min(1).max(getDraftEligibilityResponsePlayersItemNameMax),
+  "positions": zod.array(zod.enum(['PG', 'SG', 'SF', 'PF', 'C'])).min(1).max(getDraftEligibilityResponsePlayersItemPositionsMax)
+})).min(getDraftEligibilityResponsePlayersMin).max(getDraftEligibilityResponsePlayersMax),
+  "season": zod.string(),
+  "gameId": zod.string().regex(getDraftEligibilityResponseGameIdRegExp),
+  "fetchedAt": zod.coerce.date(),
+  "source": zod.string().url()
+})
+
+
+/**
  * @summary Public ESPN full-season NBA projections, not historical stats
  */
 export const getDraftProjectionsResponsePlayersItemGamesMax = 82;

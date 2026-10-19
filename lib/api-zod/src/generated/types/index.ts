@@ -7,6 +7,9 @@
  */
 
 export * from './completeYahooAuthorizationParams';
+export * from './draftEligibilityFeed';
+export * from './draftEligibilityPlayer';
+export * from './draftEligibilityPlayerPositionsItem';
 export * from './draftInjuryFeed';
 export * from './draftInjuryReport';
 export * from './draftProjectionFeed';

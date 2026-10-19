@@ -2,6 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { analyzeDraft, assignRoster, teamAtPick } from '@/lib/draft-engine';
 import { createInitialState, parseProjections, parseSession, playerSchema, settingsSchema } from '@/lib/projections';
 import { migrateLeagueRoster } from '@/lib/league-roster';
+import { withYahooEligibility } from '@/lib/eligibility';
+import type { DraftEligibilityFeed } from '@workspace/api-client-react';
 import type { DraftState, LeagueSettings, Player, Position, ProjectionSource } from '@/lib/draft-types';
 
 const STORAGE_KEY = 'nine-cat-draft-v1';
@@ -98,7 +100,7 @@ const actions = {
     if (!label.trim() || !season.trim()) throw new Error('Enter the projection source and season.');
     if (label.length > 200 || season.length > 100) throw new Error('Please shorten the source label or season.');
     const players = parseProjections(csv);
-    commit({ ...state, players, picks: [], shortlist: [], source: { label: label.trim(), season: season.trim(), isDemo: false, importedAt: new Date().toISOString() } });
+    commit({ ...state, players: players.map(p => ({ ...p, positionsSource: 'Imported' as const })), eligibilityFeed: undefined, picks: [], shortlist: [], source: { label: label.trim(), season: season.trim(), isDemo: false, importedAt: new Date().toISOString() } });
   },
   loadCurrentProjections(players: Player[], source: ProjectionSource) {
     if (source.isDemo || players.length < 150) throw new Error('The current projection feed is incomplete. The existing board has not been replaced.');
@@ -112,14 +114,24 @@ const actions = {
     const oldByName = new Map(state.players.map(p => [normalize(p.name), p]));
     const merged = parsed.map(p => {
       const old = state.source.isDemo ? undefined : state.players.find(old => old.id === p.id) ?? oldByName.get(normalize(p.name));
-      return old ? { ...p, id: old.id,
-        ...(old.positionsVerified ? { positions: old.positions, positionsVerified: true } : {}),
-        injuryStatus: old.injuryStatus, injuryNote: old.injuryNote, injuryUpdatedAt: old.injuryUpdatedAt, injurySource: old.injurySource, injuryReturnDate: old.injuryReturnDate } : p;
+      const base = { ...p, positionsSource: source.provider === 'ESPN' ? 'ESPN' as const : 'Imported' as const };
+      return old ? { ...base, id: old.id,
+        ...((old.positionsVerified || (old.positionsSource === 'Yahoo' && state.source.season === source.season) || old.positionsConflict) ? {
+          positions: old.positions, positionsVerified: old.positionsVerified, positionsSource: old.positionsVerified ? 'Manual' as const : old.positionsSource,
+          yahooId: old.yahooId, yahooPositions: old.yahooPositions, positionsFetchedAt: old.positionsFetchedAt,
+          yahooEligibilityMissing: old.yahooEligibilityMissing, positionsConflict: old.positionsConflict,
+        } : {}),
+        injuryStatus: old.injuryStatus, injuryNote: old.injuryNote, injuryUpdatedAt: old.injuryUpdatedAt, injurySource: old.injurySource, injuryReturnDate: old.injuryReturnDate } : base;
     });
     const ids = new Set(merged.map(p => p.id));
     if (ids.size !== merged.length) throw new Error('Player identity matching was ambiguous. Existing draft was kept.');
     const missing = state.players.filter(p => !ids.has(p.id) && (analysis.draftedIds.has(p.id) || state.shortlist.includes(p.id)));
-    commit({ ...state, players: [...merged, ...missing], source, shortlist: state.shortlist.filter(id => ids.has(id) || missing.some(p => p.id === id)) });
+    commit({ ...state, players: [...merged, ...missing], source,
+      eligibilityFeed: state.source.season === source.season ? state.eligibilityFeed : undefined,
+      shortlist: state.shortlist.filter(id => ids.has(id) || missing.some(p => p.id === id)) });
+  },
+  applyYahooEligibility(feed: DraftEligibilityFeed) {
+    commit(withYahooEligibility(state, feed, new Date().toISOString()));
   },
   applyInjuries(reports: { name: string; status: string; note: string; updatedAt?: string; source: string; returnDate?: string }[], checkedAt: string, reportUpdatedAt?: string) {
     if (state.source.isDemo) throw new Error('Load current projections before checking injuries. Demo identities are not verified.');
@@ -136,7 +148,7 @@ const actions = {
   updatePlayerPositions(playerId: string, positions: Position[]) {
     const old = state.players.find(p => p.id === playerId);
     if (!old) throw new Error('That player is not in the pool.');
-    const updated = playerSchema.parse({ ...old, positions: [...new Set(positions)], positionsVerified: true });
+    const updated = playerSchema.parse({ ...old, positions: [...new Set(positions)], positionsVerified: true, positionsSource: 'Manual', positionsConflict: false });
     const players = state.players.map(p => p.id === playerId ? updated : p);
     const roster = state.picks.filter(p => p.team === state.settings.myPosition).map(p => players.find(player => player.id === p.playerId)!);
     if (assignRoster(roster, state.settings.rosterSlots).fitted < roster.length) throw new Error('Those positions would leave your existing roster without an eligible slot. Correct the pick before changing eligibility.');

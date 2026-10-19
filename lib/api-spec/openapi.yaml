@@ -11,6 +11,24 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /draft-data/eligibility:
+    get:
+      operationId: getDraftEligibility
+      tags: [draft-data]
+      summary: Standard Yahoo NBA position eligibility from the public Draft Analysis data
+      responses:
+        "200":
+          description: Complete paginated current-season public player eligibility with provenance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftEligibilityFeed"
+        "503":
+          description: Yahoo public eligibility unavailable, incomplete or from the wrong season
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
   /draft-data/projections:
     get:
       operationId: getDraftProjections
@@ -212,6 +230,30 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    DraftEligibilityPlayer:
+      type: object
+      required: [yahooId, name, positions]
+      properties:
+        yahooId: { type: string, pattern: '^[0-9]+$' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        positions:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items: { type: string, enum: [PG, SG, SF, PF, C] }
+    DraftEligibilityFeed:
+      type: object
+      required: [players, season, gameId, fetchedAt, source]
+      properties:
+        players:
+          type: array
+          minItems: 150
+          maxItems: 3000
+          items: { $ref: "#/components/schemas/DraftEligibilityPlayer" }
+        season: { type: string }
+        gameId: { type: string, pattern: '^[0-9]+$' }
+        fetchedAt: { type: string, format: date-time }
+        source: { type: string, format: uri }
     DraftProjectionPlayer:
       type: object
       required: [id, name, team, positions, games, points, rebounds, assists, steals, blocks, threes, turnovers, fgm, fga, ftm, fta]

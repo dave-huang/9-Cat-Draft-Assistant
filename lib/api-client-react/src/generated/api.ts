@@ -21,6 +21,7 @@ import type {
 
 import type {
   CompleteYahooAuthorizationParams,
+  DraftEligibilityFeed,
   DraftInjuryFeed,
   DraftProjectionFeed,
   HealthStatus,
@@ -58,6 +59,83 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetDraftEligibilityUrl = () => {
+
+
+
+
+  return `/api/draft-data/eligibility`
+}
+
+/**
+ * @summary Standard Yahoo NBA position eligibility from the public Draft Analysis data
+ */
+export const getDraftEligibility = async ( options?: Parameters<typeof customFetch>[1]): Promise<DraftEligibilityFeed> => {
+
+  return customFetch<DraftEligibilityFeed>(getGetDraftEligibilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDraftEligibilityQueryKey = () => {
+    return [
+    `/api/draft-data/eligibility`
+    ] as const;
+    }
+
+
+export const getGetDraftEligibilityQueryOptions = <TData = Awaited<ReturnType<typeof getDraftEligibility>>, TError = ErrorType<YahooError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftEligibility>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDraftEligibilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftEligibility>>> = ({ signal }) => getDraftEligibility({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDraftEligibility>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDraftEligibilityQueryResult = NonNullable<Awaited<ReturnType<typeof getDraftEligibility>>>
+export type GetDraftEligibilityQueryError = ErrorType<YahooError>
+
+
+/**
+ * @summary Standard Yahoo NBA position eligibility from the public Draft Analysis data
+ */
+
+export function useGetDraftEligibility<TData = Awaited<ReturnType<typeof getDraftEligibility>>, TError = ErrorType<YahooError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftEligibility>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDraftEligibilityQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetDraftProjectionsUrl = () => {
 

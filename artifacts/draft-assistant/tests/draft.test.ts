@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { analyzeDraft, assignRoster } from '../src/lib/draft-engine';
 import { createInitialState, parseSession } from '../src/lib/projections';
 import { LEAGUE_ROSTER_SLOTS, migrateLeagueRoster } from '../src/lib/league-roster';
+import { positionSourceLabel, withYahooEligibility } from '../src/lib/eligibility';
 import type { Player } from '../src/lib/draft-types';
 
 const players: Player[] = Array.from({ length: 170 }, (_, i) => ({
@@ -12,6 +13,64 @@ const players: Player[] = Array.from({ length: 170 }, (_, i) => ({
   turnovers: 1 + i % 3, fgm: 5 + i % 4, fga: 12 + i % 4, ftm: 3, fta: 4,
 }));
 const source = { label: 'Synthetic forecasts', season: '2026-27', isDemo: false, provider: 'ESPN', fetchedAt: new Date().toISOString() };
+const yahooFeed = () => ({
+  players: players.map((p, i) => ({ yahooId: String(i + 1000), name: p.name, positions: [...p.positions] })),
+  season: source.season, gameId: '900', source: 'https://basketball.fantasysports.yahoo.com/nba/draftanalysis?pos=ALL', fetchedAt: new Date().toISOString(),
+});
+
+test('Yahoo replaces ESPN positions by unique accent/suffix-normalized identity and survives backup restore', () => {
+  const state = { ...createInitialState(), players: players.map(p => ({ ...p, positionsSource: 'ESPN' as const })), source };
+  const feed = yahooFeed();
+  feed.players[0] = { ...feed.players[0]!, name: 'Tést Player 0 Jr.', positions: ['SG'] };
+  const result = withYahooEligibility(state, feed, feed.fetchedAt);
+  assert.deepEqual(result.players[0]!.positions, ['SG']);
+  assert.equal(result.players[0]!.positionsSource, 'Yahoo');
+  assert.equal(result.players[0]!.points, players[0]!.points);
+  assert.equal(result.players[0]!.games, players[0]!.games);
+  assert.equal(result.eligibilityFeed!.matchedPlayers, players.length);
+  assert.equal(positionSourceLabel(result.players[0]!), 'Yahoo');
+  const restored = parseSession(JSON.stringify(result));
+  assert.equal(restored.players[0]!.yahooId, '1000');
+  assert.deepEqual(restored.eligibilityFeed, result.eligibilityFeed);
+});
+
+test('manual corrections beat Yahoo; unmatched and ambiguous names never get falsely labeled Yahoo', () => {
+  const state = { ...createInitialState(), players: players.map(p => ({ ...p, positionsSource: 'ESPN' as const })), source };
+  state.players[0] = { ...state.players[0]!, positions: ['PG'], positionsVerified: true } as typeof state.players[number];
+  const feed = yahooFeed();
+  feed.players[0]!.positions = ['C'];
+  const manual = withYahooEligibility(state, feed, feed.fetchedAt);
+  assert.deepEqual(manual.players[0]!.positions, ['PG']);
+  assert.deepEqual(manual.players[0]!.yahooPositions, ['C']);
+  assert.equal(positionSourceLabel(manual.players[0]!), 'Manual');
+  const ambiguousFeed = yahooFeed();
+  ambiguousFeed.players.push({ ...ambiguousFeed.players[1]!, yahooId: '999999' });
+  const ambiguous = withYahooEligibility(state, ambiguousFeed, feed.fetchedAt);
+  assert.equal(ambiguous.eligibilityFeed!.unmatchedPlayers, 1);
+  assert.equal(ambiguous.players[1]!.positionsSource, 'ESPN');
+  assert.equal(positionSourceLabel(ambiguous.players[1]!), 'ESPN · unverified');
+  const missingFeed = yahooFeed();
+  missingFeed.players = missingFeed.players.slice(1);
+  const missing = withYahooEligibility(manual, missingFeed, feed.fetchedAt);
+  assert.equal(missing.players[0]!.yahooEligibilityMissing, true);
+  assert.deepEqual(missing.players[0]!.positions, ['PG']);
+  assert.throws(() => withYahooEligibility(state, { ...feed, season: '2025-26' }, feed.fetchedAt), /different/);
+  assert.throws(() => withYahooEligibility(state, { ...feed, players: [] }, feed.fetchedAt), /incomplete/);
+});
+
+test('Yahoo changes cannot erase picks or silently make already-drafted players unassigned', () => {
+  const state = { ...createInitialState(), players: players.map(p => ({ ...p, positionsSource: 'ESPN' as const })), source };
+  state.settings.rosterSlots = ['PG', 'SG', 'SF', 'PF', 'C'];
+  state.picks = players.slice(0, 5).map((p, i) => ({ playerId: p.id, team: state.settings.myPosition, overall: i + 1 }));
+  const feed = yahooFeed();
+  for (const p of feed.players.slice(0, 5)) p.positions = ['C'];
+  const result = withYahooEligibility(state, feed, feed.fetchedAt);
+  assert.strictEqual(result.picks, state.picks);
+  assert.equal(analyzeDraft(result).rosterAssignment.filter(p => p.player).length, 5);
+  assert.equal(result.players[0]!.positionsConflict, true);
+  assert.equal(positionSourceLabel(result.players[0]!), 'Check Yahoo');
+  assert.deepEqual(result.players[0]!.yahooPositions, ['C']);
+});
 
 test('league screenshot gives 12 draftable spots and two separate injury reserves, not 14 picks', () => {
   const state = { ...createInitialState(), players, source };
@@ -137,6 +196,12 @@ test('store actions persist picks, correct earlier marks and refresh data withou
   const restored = parseSession(d.exportSession());
   assert.deepEqual(restored.picks, get().state.picks);
   assert.ok(storage.has('nine-cat-draft-v1'));
+  d.applyYahooEligibility(yahooFeed());
+  assert.equal(get().state.players[0]!.positionsSource, 'Yahoo');
+  assert.equal(get().state.players[2]!.positionsSource, 'Manual');
+  d.loadCurrentProjections(players.map(p => ({ ...p, positions: ['C'] as Player['positions'] })), newSource);
+  assert.deepEqual(get().state.players[0]!.positions, players[0]!.positions);
+  assert.equal(get().state.players[0]!.positionsSource, 'Yahoo');
   d.toggleShortlist('test-3');
   const beforeReset = get().state;
   d.resetDraft();
@@ -145,6 +210,7 @@ test('store actions persist picks, correct earlier marks and refresh data withou
   assert.strictEqual(get().state.players, beforeReset.players);
   assert.strictEqual(get().state.source, beforeReset.source);
   assert.strictEqual(get().state.injuryFeed, beforeReset.injuryFeed);
+  assert.strictEqual(get().state.eligibilityFeed, beforeReset.eligibilityFeed);
   assert.deepEqual(get().state.settings, beforeReset.settings);
   assert.equal(get().analysis.roster.length, 0);
   assert.equal(get().analysis.rosterAssignment.filter(s => !s.player).length, 12);
