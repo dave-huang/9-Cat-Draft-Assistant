@@ -19,6 +19,12 @@ Yahoo requires the OAuth application's registration to enable private Fantasy Sp
 
 Sources: [Yahoo Fantasy setup](https://sports.yahoo.com/developer/docs/), [Yahoo authorization-code flow](https://developer.yahoo.com/oauth2/guide/flows_authcode/), [Replit connector configuration](https://docs.replit.com/features/integrations/overview#configuring-oauth-app-with-replit), [Replit integration management](https://docs.replit.com/replitai/managing-connectors).
 
+Yahoo position eligibility can be investigated independently of the refused Fantasy API connection. On 2026-10-19, the public [standard NBA Draft Analysis page](https://basketball.fantasysports.yahoo.com/nba/draftanalysis?pos=ALL) was readable without a user sign-in and contained PG/SG/SF/PF/C eligibility. This was a research fetch, not a verified application-server import or full-pool coverage check.
+
+**Why:** The generic NBA players URL returned an error page, while a publicly readable league player list used a different G/F/C position format. A random public league is therefore not a safe substitute for standard position eligibility.
+
+**How to apply:** For a Yahoo eligibility importer, validate current season, standard position taxonomy, pagination, full-pool coverage and direct server availability before promising automatic updates. Public HTML is not a stable official API. Preserve manual corrections, label unmatched players accurately, and do not resume OAuth troubleshooting merely to obtain positions.
+
 Yahoo's current [Fantasy developer portal](https://sports.yahoo.com/developer) describes submitting an [access application](https://sports.yahoo.com/developer/access/), review and approval, including for personal or single-league use. Possessing a Yahoo client ID and secret alone does not establish Fantasy API read permission. The current access form states that access is read-only and write access is unavailable, despite older setup documentation still describing a Read/Write choice.
 
 **Why:** The current portal adds an access-review requirement and access restrictions that older application-registration instructions may not reflect. This does not establish the cause of a generic authorization error or the earlier managed-connector failure.
