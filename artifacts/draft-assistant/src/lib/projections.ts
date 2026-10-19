@@ -16,6 +16,12 @@ export const playerSchema = z.object({
   fgm: perGame, fga: perGame, ftm: perGame, fta: perGame,
   adp: z.number().finite().positive().max(5000).optional(),
   note: z.string().max(1000).optional(),
+  injuryStatus: z.string().max(80).optional(),
+  injuryNote: z.string().max(2000).optional(),
+  injuryUpdatedAt: z.string().optional(),
+  injurySource: z.string().max(300).optional(),
+  injuryReturnDate: z.string().optional(),
+  positionsVerified: z.boolean().optional(),
 }).refine(p => p.fgm <= p.fga && p.ftm <= p.fta && p.threes <= p.fgm, {
   message: 'Makes cannot exceed attempts; three-point makes cannot exceed field-goal makes.',
 });
@@ -24,11 +30,13 @@ export const settingsSchema = z.object({
   teamCount: z.number().int().min(4).max(20),
   myPosition: z.number().int().min(1).max(20),
   rosterSlots: z.array(slotSchema).min(5).max(20),
+  trackingMode: z.enum(['manual', 'snake']).default('manual'),
 }).refine(s => s.myPosition <= s.teamCount, {
   message: 'Your draft position must be within the number of teams.',
 });
 export const DEFAULT_SETTINGS: LeagueSettings = {
   name: 'My Fantasy League', teamCount: 12, myPosition: 6,
+  trackingMode: 'manual',
   rosterSlots: ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'C', 'UTIL', 'UTIL', 'BN', 'BN', 'BN'],
 };
 export function createInitialState(): DraftState {
@@ -125,12 +133,19 @@ const stateSchema = z.object({
   players: z.array(playerSchema).min(1).max(3000),
   source: z.object({
     label: z.string().min(1).max(200), season: z.string().min(1).max(100),
-    isDemo: z.boolean(), importedAt: z.string().optional(),
+     isDemo: z.boolean(), importedAt: z.string().optional(),
+     updatedAt: z.string().optional(), fetchedAt: z.string().optional(), checkedAt: z.string().optional(),
+     url: z.string().optional(), provider: z.string().optional(),
+     positionsPlatform: z.string().optional(), adpPlatform: z.string().optional(),
   }),
   picks: z.array(z.object({
-    playerId: z.string(), team: z.number().int().min(1).max(20), overall: z.number().int().positive(),
-  })).max(400),
+    playerId: z.string(), team: z.number().int().min(0).max(20), overall: z.number().int().positive(),
+  })).max(3000),
   shortlist: z.array(z.string()).max(3000),
+  injuryFeed: z.object({
+    checkedAt: z.string(), source: z.string(), reportUpdatedAt: z.string().optional(),
+    matchedPlayers: z.number().int().nonnegative(), totalReports: z.number().int().nonnegative(),
+  }).optional(),
 });
 export function parseSession(json: string): DraftState {
   if (json.length > 5_000_000) throw new Error('The backup file is too large.');
@@ -147,12 +162,17 @@ export function parseSession(json: string): DraftState {
     const round = Math.floor(i / state.settings.teamCount);
     const offset = i % state.settings.teamCount;
     const team = round % 2 ? state.settings.teamCount - offset : offset + 1;
-    if (!ids.has(pick.playerId) || picked.has(pick.playerId) || pick.overall !== i + 1 || pick.team !== team) {
+    const validTeam = state.settings.trackingMode === 'manual'
+      ? pick.team <= state.settings.teamCount
+      : pick.team === team;
+    if (!ids.has(pick.playerId) || picked.has(pick.playerId) || pick.overall !== i + 1 || !validTeam) {
       throw new Error('The backup contains invalid or duplicate draft picks.');
     }
     picked.add(pick.playerId);
   }
-  if (state.picks.length > state.settings.teamCount * state.settings.rosterSlots.length) throw new Error('The backup has more picks than league roster spots.');
+  if (state.settings.trackingMode !== 'manual' && state.picks.length > state.settings.teamCount * state.settings.rosterSlots.length) throw new Error('The backup has more picks than league roster spots.');
+  const mine = state.picks.filter(p => p.team === state.settings.myPosition).map(p => state.players.find(player => player.id === p.playerId)!);
+  if (mine.length > state.settings.rosterSlots.length) throw new Error('The backup has more of your picks than roster spots.');
   if (state.shortlist.some(id => !ids.has(id))) throw new Error('The backup shortlist contains a missing player.');
   return state;
 }

@@ -9,6 +9,88 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Public ESPN full-season NBA projections, not historical stats
+ */
+export const getDraftProjectionsResponsePlayersItemGamesMax = 82;
+
+export const getDraftProjectionsResponsePlayersItemPointsMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemReboundsMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemAssistsMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemStealsMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemBlocksMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemThreesMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemTurnoversMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemFgmMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemFgaMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemFtmMin = 0;
+
+export const getDraftProjectionsResponsePlayersItemFtaMin = 0;
+
+
+
+export const GetDraftProjectionsResponse = zod.object({
+  "players": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "team": zod.string(),
+  "positions": zod.array(zod.enum(['PG', 'SG', 'SF', 'PF', 'C'])),
+  "games": zod.number().min(1).max(getDraftProjectionsResponsePlayersItemGamesMax),
+  "points": zod.number().min(getDraftProjectionsResponsePlayersItemPointsMin),
+  "rebounds": zod.number().min(getDraftProjectionsResponsePlayersItemReboundsMin),
+  "assists": zod.number().min(getDraftProjectionsResponsePlayersItemAssistsMin),
+  "steals": zod.number().min(getDraftProjectionsResponsePlayersItemStealsMin),
+  "blocks": zod.number().min(getDraftProjectionsResponsePlayersItemBlocksMin),
+  "threes": zod.number().min(getDraftProjectionsResponsePlayersItemThreesMin),
+  "turnovers": zod.number().min(getDraftProjectionsResponsePlayersItemTurnoversMin),
+  "fgm": zod.number().min(getDraftProjectionsResponsePlayersItemFgmMin),
+  "fga": zod.number().min(getDraftProjectionsResponsePlayersItemFgaMin),
+  "ftm": zod.number().min(getDraftProjectionsResponsePlayersItemFtmMin),
+  "fta": zod.number().min(getDraftProjectionsResponsePlayersItemFtaMin),
+  "adp": zod.number().optional()
+})),
+  "skippedPlayers": zod.number().int(),
+  "source": zod.object({
+  "label": zod.string(),
+  "season": zod.string(),
+  "provider": zod.string(),
+  "positionsPlatform": zod.string(),
+  "adpPlatform": zod.string(),
+  "fetchedAt": zod.string(),
+  "updatedAt": zod.string().optional(),
+  "url": zod.string(),
+  "isDemo": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Current public ESPN NBA injury reports; absence is not health confirmation
+ */
+export const GetDraftInjuriesResponse = zod.object({
+  "reports": zod.array(zod.object({
+  "name": zod.string(),
+  "status": zod.string(),
+  "note": zod.string(),
+  "source": zod.string(),
+  "updatedAt": zod.string().optional(),
+  "returnDate": zod.string().optional()
+})),
+  "checkedAt": zod.string(),
+  "reportUpdatedAt": zod.string().optional(),
+  "source": zod.string()
+})
+
+
+/**
  * @summary Direct Yahoo connection and configuration status
  */
 export const GetYahooStatusResponse = zod.object({

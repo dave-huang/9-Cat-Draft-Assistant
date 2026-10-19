@@ -5,6 +5,86 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type DraftProjectionPlayerPositionsItem = typeof DraftProjectionPlayerPositionsItem[keyof typeof DraftProjectionPlayerPositionsItem];
+
+
+export const DraftProjectionPlayerPositionsItem = {
+  PG: 'PG',
+  SG: 'SG',
+  SF: 'SF',
+  PF: 'PF',
+  C: 'C',
+} as const;
+
+export interface DraftProjectionPlayer {
+  id: string;
+  name: string;
+  team: string;
+  positions: DraftProjectionPlayerPositionsItem[];
+  /**
+     * @minimum 1
+     * @maximum 82
+     */
+  games: number;
+  /** @minimum 0 */
+  points: number;
+  /** @minimum 0 */
+  rebounds: number;
+  /** @minimum 0 */
+  assists: number;
+  /** @minimum 0 */
+  steals: number;
+  /** @minimum 0 */
+  blocks: number;
+  /** @minimum 0 */
+  threes: number;
+  /** @minimum 0 */
+  turnovers: number;
+  /** @minimum 0 */
+  fgm: number;
+  /** @minimum 0 */
+  fga: number;
+  /** @minimum 0 */
+  ftm: number;
+  /** @minimum 0 */
+  fta: number;
+  adp?: number;
+}
+
+export type DraftProjectionFeedSource = {
+  label: string;
+  season: string;
+  provider: string;
+  positionsPlatform: string;
+  adpPlatform: string;
+  fetchedAt: string;
+  updatedAt?: string;
+  url: string;
+  isDemo: boolean;
+};
+
+export interface DraftProjectionFeed {
+  players: DraftProjectionPlayer[];
+  skippedPlayers: number;
+  source: DraftProjectionFeedSource;
+}
+
+export interface DraftInjuryReport {
+  name: string;
+  status: string;
+  note: string;
+  source: string;
+  updatedAt?: string;
+  returnDate?: string;
+}
+
+export interface DraftInjuryFeed {
+  reports: DraftInjuryReport[];
+  checkedAt: string;
+  reportUpdatedAt?: string;
+  source: string;
+}
+
 export interface YahooStatus {
   configured: boolean;
   connected: boolean;

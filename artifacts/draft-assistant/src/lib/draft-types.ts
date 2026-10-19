@@ -23,12 +23,19 @@ export interface Player {
   fta: number;
   adp?: number;
   note?: string;
+  injuryStatus?: string;
+  injuryNote?: string;
+  injuryUpdatedAt?: string;
+  injurySource?: string;
+  injuryReturnDate?: string;
+  positionsVerified?: boolean;
 }
 export interface LeagueSettings {
   name: string;
   teamCount: number;
   myPosition: number;
   rosterSlots: RosterSlot[];
+  trackingMode?: 'manual' | 'snake';
 }
 export interface Pick {
   playerId: string;
@@ -40,6 +47,13 @@ export interface ProjectionSource {
   season: string;
   importedAt?: string;
   isDemo: boolean;
+  updatedAt?: string;
+  fetchedAt?: string;
+  checkedAt?: string;
+  url?: string;
+  provider?: string;
+  positionsPlatform?: string;
+  adpPlatform?: string;
 }
 export interface DraftState {
   version: 1;
@@ -48,6 +62,13 @@ export interface DraftState {
   source: ProjectionSource;
   picks: Pick[];
   shortlist: string[];
+  injuryFeed?: {
+    checkedAt: string;
+    source: string;
+    reportUpdatedAt?: string;
+    matchedPlayers: number;
+    totalReports: number;
+  };
 }
 export interface Recommendation {
   player: Player;

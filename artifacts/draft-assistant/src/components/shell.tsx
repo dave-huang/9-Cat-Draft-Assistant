@@ -42,8 +42,9 @@ export function Shell({ children }: { children: ReactNode }) {
             data-testid="status-saved"
             className={`ml-auto font-mono text-[11px] md:ml-2 ${saveError ? 'text-[hsl(44_90%_65%)]' : 'opacity-70'}`}
           >
-            {saveError ? 'Not saved' : 'Saved in this browser'}
+            {saveError ? 'Not saved' : 'Auto-saved'}
           </span>
+          <Link href="/settings" className="font-mono text-[11px] underline opacity-80 hover:opacity-100" data-testid="link-backup-shell">Backup</Link>
         </div>
         {state.source.isDemo && (
           <div className="bg-[hsl(44_90%_60%)] px-4 py-1 text-center text-xs font-semibold text-[hsl(222_32%_13%)]" data-testid="banner-demo">

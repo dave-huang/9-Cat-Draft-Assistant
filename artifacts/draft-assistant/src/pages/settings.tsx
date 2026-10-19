@@ -3,7 +3,7 @@ import { Download, Plus, X } from 'lucide-react';
 import { useDraft } from '@/hooks/use-draft';
 import type { RosterSlot } from '@/lib/draft-types';
 import { CSV_TEMPLATE } from '@/lib/projections';
-import { YahooConnection } from '@/components/YahooConnection';
+import { DraftDataPanel } from '@/components/DraftDataPanel';
 import { btn, ConfirmButton, errMsg, field, Notice, Panel } from '@/components/bits';
 
 const SLOT_OPTIONS: RosterSlot[] = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL', 'BN'];
@@ -117,7 +117,8 @@ export default function Settings() {
             <strong>{state.source.label || 'Unlabeled'}</strong> / season {state.source.season || 'unspecified'} / {state.players.length} players
             {state.source.isDemo && <span className="ml-2 rounded bg-[hsl(44_90%_60%)]/50 px-1.5 text-xs font-semibold">Illustrative demo</span>}
           </p>
-          {state.source.importedAt && <p className="mt-1 text-xs text-muted-foreground">Imported {new Date(state.source.importedAt).toLocaleString()}</p>}
+          {state.source.importedAt && <p className="mt-1 text-xs text-muted-foreground">Imported into this app {new Date(state.source.importedAt).toLocaleString()} (not the forecast date)</p>}
+          <p className="mt-1 text-xs text-muted-foreground">Forecast date: {state.source.updatedAt ? new Date(state.source.updatedAt).toLocaleDateString() : 'unknown'}</p>
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
             Numbers must be per-game averages for one season. Games is the projected games played, from 1 to 82. Columns: <code className="break-all font-mono">name,team,positions,games,points,rebounds,assists,steals,blocks,threes,turnovers,fgm,fga,ftm,fta,adp,note</code>. Positions use PG, SG, SF, PF, C (for example PG/SG). ADP and note are optional; every other column is required. Any invalid row rejects the whole file.
           </p>
@@ -175,7 +176,14 @@ export default function Settings() {
           <div className="mt-2"><Msg m={rm} /></div>
         </Panel>
 
-        <YahooConnection />
+        <Panel title="Draft tracking">
+          <p className="text-sm" data-testid="text-tracking-mode">Mode: <strong>{state.settings.trackingMode === 'snake' ? 'Snake order' : 'Manual'}</strong>. No Yahoo sign-in required; you mark picks yourself while watching Yahoo.</p>
+          {state.settings.trackingMode === 'snake' && (
+            <button className={`${btn.ghost} mt-3`} data-testid="button-set-manual" onClick={() => { try { d.updateSettings({ ...state.settings, trackingMode: 'manual' }); setLm({ ok: true, t: 'Switched to manual tracking. Picks kept.' }); } catch (e) { setLm({ ok: false, t: errMsg(e) }); } }}>Switch to manual</button>
+          )}
+        </Panel>
+
+        <DraftDataPanel />
 
         <Panel title="How recommendations work">
           <ul className="space-y-2 text-sm leading-relaxed">
@@ -183,10 +191,10 @@ export default function Settings() {
             <li><strong>Volume-weighted percentages.</strong> FG% and FT% are scored by makes versus attempts, so a high-volume shooter moves your team percentage more than a low-volume one.</li>
             <li><strong>Turnovers: lower is better.</strong> Turnover z-scores are flipped so fewer turnovers help.</li>
             <li><strong>Weakness attention, capped.</strong> Once you have players, categories where your roster trails get extra weight, with a cap so one weak category cannot take over the board.</li>
-            <li><strong>Health weighting.</strong> Projected games played scale a player's value, so a star who misses time is discounted.</li>
+            <li><strong>Health weighting.</strong> Projected games played scale a player's value. Current Out / doubtful / day-to-day reports add a small uncertainty discount, without inventing a new games forecast.</li>
             <li><strong>Position eligibility.</strong> Players fill slots they qualify for, including bench slots. A pick that cannot fit your roster is not recommended for your turn.</li>
             <li><strong>ADP watch.</strong> If your CSV includes ADP, players who may be selected before your next pick are flagged. It is only a market signal.</li>
-            <li><strong>A heuristic, not a guarantee.</strong> Z-scores use the draftable projection pool as a fixed baseline and are not win odds. Demo data is illustrative only and not verified or current. The app does not account for playoff schedules, lineup streaming, or real-time injuries.</li>
+            <li><strong>A heuristic, not a guarantee.</strong> Z-scores use the draftable projection pool as a fixed baseline and are not win odds. Demo data is illustrative only. Injury reports are dated and refreshed separately; missing reports do not confirm health. Playoff schedules and lineup streaming are not modeled.</li>
           </ul>
         </Panel>
       </div>

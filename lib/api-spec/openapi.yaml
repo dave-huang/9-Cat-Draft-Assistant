@@ -11,6 +11,42 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /draft-data/projections:
+    get:
+      operationId: getDraftProjections
+      tags: [draft-data]
+      summary: Public ESPN full-season NBA projections, not historical stats
+      responses:
+        "200":
+          description: Complete validated projection pool with provenance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftProjectionFeed"
+        "503":
+          description: Provider unavailable or current-season coverage incomplete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
+  /draft-data/injuries:
+    get:
+      operationId: getDraftInjuries
+      tags: [draft-data]
+      summary: Current public ESPN NBA injury reports; absence is not health confirmation
+      responses:
+        "200":
+          description: Dated injury reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftInjuryFeed"
+        "503":
+          description: Injury provider unavailable or malformed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
   /yahoo/status:
     get:
       operationId: getYahooStatus
@@ -176,6 +212,70 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    DraftProjectionPlayer:
+      type: object
+      required: [id, name, team, positions, games, points, rebounds, assists, steals, blocks, threes, turnovers, fgm, fga, ftm, fta]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        team: { type: string }
+        positions:
+          type: array
+          items: { type: string, enum: [PG, SG, SF, PF, C] }
+        games: { type: number, minimum: 1, maximum: 82 }
+        points: { type: number, minimum: 0 }
+        rebounds: { type: number, minimum: 0 }
+        assists: { type: number, minimum: 0 }
+        steals: { type: number, minimum: 0 }
+        blocks: { type: number, minimum: 0 }
+        threes: { type: number, minimum: 0 }
+        turnovers: { type: number, minimum: 0 }
+        fgm: { type: number, minimum: 0 }
+        fga: { type: number, minimum: 0 }
+        ftm: { type: number, minimum: 0 }
+        fta: { type: number, minimum: 0 }
+        adp: { type: number }
+    DraftProjectionFeed:
+      type: object
+      required: [players, source, skippedPlayers]
+      properties:
+        players:
+          type: array
+          items: { $ref: "#/components/schemas/DraftProjectionPlayer" }
+        skippedPlayers: { type: integer }
+        source:
+          type: object
+          required: [label, season, provider, positionsPlatform, adpPlatform, fetchedAt, url, isDemo]
+          properties:
+            label: { type: string }
+            season: { type: string }
+            provider: { type: string }
+            positionsPlatform: { type: string }
+            adpPlatform: { type: string }
+            fetchedAt: { type: string }
+            updatedAt: { type: string }
+            url: { type: string }
+            isDemo: { type: boolean }
+    DraftInjuryReport:
+      type: object
+      required: [name, status, note, source]
+      properties:
+        name: { type: string }
+        status: { type: string }
+        note: { type: string }
+        source: { type: string }
+        updatedAt: { type: string }
+        returnDate: { type: string }
+    DraftInjuryFeed:
+      type: object
+      required: [reports, checkedAt, source]
+      properties:
+        reports:
+          type: array
+          items: { $ref: "#/components/schemas/DraftInjuryReport" }
+        checkedAt: { type: string }
+        reportUpdatedAt: { type: string }
+        source: { type: string }
     YahooStatus:
       type: object
       required: [configured, connected, missingConfig, redirectUri, connectedAt, csrfToken]

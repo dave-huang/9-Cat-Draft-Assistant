@@ -7,6 +7,12 @@
  */
 
 export * from './completeYahooAuthorizationParams';
+export * from './draftInjuryFeed';
+export * from './draftInjuryReport';
+export * from './draftProjectionFeed';
+export * from './draftProjectionFeedSource';
+export * from './draftProjectionPlayer';
+export * from './draftProjectionPlayerPositionsItem';
 export * from './healthStatus';
 export * from './yahooAuthorization';
 export * from './yahooConsent';

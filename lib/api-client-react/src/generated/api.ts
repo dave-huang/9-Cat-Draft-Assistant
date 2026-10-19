@@ -21,6 +21,8 @@ import type {
 
 import type {
   CompleteYahooAuthorizationParams,
+  DraftInjuryFeed,
+  DraftProjectionFeed,
   HealthStatus,
   YahooAuthorization,
   YahooConsent,
@@ -56,6 +58,160 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetDraftProjectionsUrl = () => {
+
+
+
+
+  return `/api/draft-data/projections`
+}
+
+/**
+ * @summary Public ESPN full-season NBA projections, not historical stats
+ */
+export const getDraftProjections = async ( options?: Parameters<typeof customFetch>[1]): Promise<DraftProjectionFeed> => {
+
+  return customFetch<DraftProjectionFeed>(getGetDraftProjectionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDraftProjectionsQueryKey = () => {
+    return [
+    `/api/draft-data/projections`
+    ] as const;
+    }
+
+
+export const getGetDraftProjectionsQueryOptions = <TData = Awaited<ReturnType<typeof getDraftProjections>>, TError = ErrorType<YahooError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftProjections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDraftProjectionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftProjections>>> = ({ signal }) => getDraftProjections({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDraftProjections>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDraftProjectionsQueryResult = NonNullable<Awaited<ReturnType<typeof getDraftProjections>>>
+export type GetDraftProjectionsQueryError = ErrorType<YahooError>
+
+
+/**
+ * @summary Public ESPN full-season NBA projections, not historical stats
+ */
+
+export function useGetDraftProjections<TData = Awaited<ReturnType<typeof getDraftProjections>>, TError = ErrorType<YahooError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftProjections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDraftProjectionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDraftInjuriesUrl = () => {
+
+
+
+
+  return `/api/draft-data/injuries`
+}
+
+/**
+ * @summary Current public ESPN NBA injury reports; absence is not health confirmation
+ */
+export const getDraftInjuries = async ( options?: Parameters<typeof customFetch>[1]): Promise<DraftInjuryFeed> => {
+
+  return customFetch<DraftInjuryFeed>(getGetDraftInjuriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDraftInjuriesQueryKey = () => {
+    return [
+    `/api/draft-data/injuries`
+    ] as const;
+    }
+
+
+export const getGetDraftInjuriesQueryOptions = <TData = Awaited<ReturnType<typeof getDraftInjuries>>, TError = ErrorType<YahooError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftInjuries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDraftInjuriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftInjuries>>> = ({ signal }) => getDraftInjuries({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDraftInjuries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDraftInjuriesQueryResult = NonNullable<Awaited<ReturnType<typeof getDraftInjuries>>>
+export type GetDraftInjuriesQueryError = ErrorType<YahooError>
+
+
+/**
+ * @summary Current public ESPN NBA injury reports; absence is not health confirmation
+ */
+
+export function useGetDraftInjuries<TData = Awaited<ReturnType<typeof getDraftInjuries>>, TError = ErrorType<YahooError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraftInjuries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDraftInjuriesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetYahooStatusUrl = () => {
 

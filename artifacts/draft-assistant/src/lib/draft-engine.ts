@@ -85,10 +85,11 @@ export function analyzeDraft(state: DraftState): DraftAnalysis {
   const roster = picks.filter(p => p.team === settings.myPosition).map(p => byId.get(p.playerId)!).filter(Boolean);
   const totalPicks = settings.teamCount * settings.rosterSlots.length;
   const nextPick = picks.length + 1;
-  const complete = nextPick > totalPicks;
+  const manual = settings.trackingMode === 'manual';
+  const complete = manual ? roster.length >= settings.rosterSlots.length : nextPick > totalPicks;
   const currentTeam = teamAtPick(nextPick, settings.teamCount);
   let myNextPick: number | null = null;
-  for (let pick = nextPick; pick <= totalPicks; pick++) {
+  for (let pick = nextPick; !manual && pick <= totalPicks; pick++) {
     if (teamAtPick(pick, settings.teamCount) === settings.myPosition) { myNextPick = pick; break; }
   }
   const picksUntilMine = myNextPick === null ? 0 : myNextPick - nextPick;
@@ -103,12 +104,12 @@ export function analyzeDraft(state: DraftState): DraftAnalysis {
   const weights = catRecord(k => 1 + clamp(-teamZ[k], 0, 1.5));
   const rosterTotals = catRecord(k => {
     if (k === 'fg') {
-      const attempts = sum(roster.map(p => p.fga));
-      return attempts ? sum(roster.map(p => p.fgm)) / attempts : 0;
+      const attempts = sum(roster.map(p => p.fga * p.games));
+      return attempts ? sum(roster.map(p => p.fgm * p.games)) / attempts : 0;
     }
     if (k === 'ft') {
-      const attempts = sum(roster.map(p => p.fta));
-      return attempts ? sum(roster.map(p => p.ftm)) / attempts : 0;
+      const attempts = sum(roster.map(p => p.fta * p.games));
+      return attempts ? sum(roster.map(p => p.ftm * p.games)) / attempts : 0;
     }
     return sum(roster.map(p => p[k]));
   });
@@ -149,7 +150,14 @@ export function analyzeDraft(state: DraftState): DraftAnalysis {
       warnings.push('ADP suggests this player may be taken before your turn. ADP is not a guarantee.');
     }
     if (player.note && !state.source.isDemo) warnings.push(player.note);
-    const rawScore = .6 * overallValue + .4 * weightedValue + scarcityBonus;
+    const status = (player.injuryStatus ?? '').toLowerCase();
+    // Small, explicit uncertainty adjustment, not an invented games forecast.
+    // Source GP remains intact and already accounts for expected missed games.
+    const injuryPenalty = /\bout\b|injured|suspended/.test(status) ? .12 :
+      /questionable|doubtful|day.to.day|dtd/.test(status) ? .04 : 0;
+    if (injuryPenalty) warnings.push(`Current ${player.injuryStatus} designation: a small injury-uncertainty discount applies in addition to projected games. Check the report before picking.`);
+    if (player.injuryNote) warnings.push(player.injuryNote);
+    const rawScore = .6 * overallValue + .4 * weightedValue + scarcityBonus - injuryPenalty;
     return {
       player, rank: 0, overallRank: ranks.get(player.id)!,
       score: Math.round(clamp(50 + 20 * rawScore, 1, 99)),
@@ -161,13 +169,15 @@ export function analyzeDraft(state: DraftState): DraftAnalysis {
   const recommendations = candidates.map(({ sortingScore: _score, ...r }, i) => ({ ...r, rank: i + 1 }));
   const warnings: string[] = [];
   if (state.source.isDemo) warnings.push('Illustrative demo data only. Import verified season projections before using recommendations in a real draft.');
+  if (!state.source.isDemo && state.source.fetchedAt && Date.now() - Date.parse(state.source.fetchedAt) > 24 * 60 * 60 * 1000) warnings.push('Projections were last retrieved over 24 hours ago. Refresh the player data in Settings before drafting.');
+  if (state.injuryFeed && Date.now() - Date.parse(state.injuryFeed.checkedAt) > 15 * 60 * 1000) warnings.push('Injury checks are over 15 minutes old. Refresh injuries; unreported does not mean healthy.');
   if (players.length < totalPicks) warnings.push(`The player pool has ${players.length} players for ${totalPicks} draft picks. Import a larger pool.`);
   const rareMissing = [...new Set(unmetSlots)].filter(slot => (opportunities.get(slot) ?? 0) === 0);
   if (rareMissing.length) warnings.push(`No undrafted player can fill ${rareMissing.join(', ')}. Check imported Yahoo eligibility.`);
   if (!complete && !available.length) warnings.push('The player pool is exhausted; draft tracking cannot continue until the pool is corrected.');
   return {
     nextPick, round: Math.ceil(nextPick / settings.teamCount), currentTeam,
-    isMyTurn: !complete && currentTeam === settings.myPosition,
+    isMyTurn: !manual && !complete && currentTeam === settings.myPosition,
     picksUntilMine, myNextPick, complete, roster, rosterAssignment: assignment,
     recommendations, categories, draftedIds, totalPicks, warnings,
   };

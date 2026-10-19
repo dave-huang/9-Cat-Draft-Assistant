@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { analyzeDraft, assignRoster, teamAtPick } from '@/lib/draft-engine';
-import { createInitialState, parseProjections, parseSession, settingsSchema } from '@/lib/projections';
-import type { DraftState, LeagueSettings } from '@/lib/draft-types';
+import { createInitialState, parseProjections, parseSession, playerSchema, settingsSchema } from '@/lib/projections';
+import type { DraftState, LeagueSettings, Player, Position, ProjectionSource } from '@/lib/draft-types';
 
 const STORAGE_KEY = 'nine-cat-draft-v1';
 const listeners = new Set<() => void>();
@@ -55,12 +55,18 @@ window.addEventListener('storage', event => {
   publish();
 });
 const actions = {
-  markPick(playerId: string) {
-    if (analysis.complete) throw new Error('The draft is complete.');
+  markPick(playerId: string, owner?: 'mine' | 'taken') {
+    const manual = state.settings.trackingMode === 'manual';
+    if (analysis.complete && (!manual || owner !== 'taken')) throw new Error('Your roster is full. You can still mark other players Taken in manual mode.');
     const player = state.players.find(p => p.id === playerId);
     if (!player) throw new Error('That player is not in the projection pool.');
     if (analysis.draftedIds.has(playerId)) throw new Error('That player has already been drafted.');
-    const team = teamAtPick(analysis.nextPick, state.settings.teamCount);
+    const team = manual
+      ? owner === 'mine' ? state.settings.myPosition : 0
+      : teamAtPick(analysis.nextPick, state.settings.teamCount);
+    if (!manual && owner && (owner === 'mine') !== (team === state.settings.myPosition)) {
+      throw new Error('This does not match the snake-draft turn. Switch to manual tracking to mark Mine or Taken independently.');
+    }
     if (team === state.settings.myPosition && assignRoster([...analysis.roster, player], state.settings.rosterSlots).fitted !== analysis.roster.length + 1) {
       throw new Error('This player does not fit your remaining roster slots. Check the position eligibility before drafting.');
     }
@@ -70,9 +76,17 @@ const actions = {
     if (!state.picks.length) throw new Error('There are no picks to undo.');
     commit({ ...state, picks: state.picks.slice(0, -1) });
   },
+  undraftPlayer(playerId: string) {
+    if (state.settings.trackingMode !== 'manual') throw new Error('Switch to manual tracking to correct an earlier pick without changing snake order.');
+    if (!analysis.draftedIds.has(playerId)) throw new Error('That player has not been drafted.');
+    commit({ ...state, picks: state.picks.filter(p => p.playerId !== playerId).map((p, i) => ({ ...p, overall: i + 1 })) });
+  },
   updateSettings(settings: LeagueSettings) {
     const result = settingsSchema.safeParse(settings);
     if (!result.success) throw new Error(result.error.issues[0]?.message ?? 'Invalid league settings.');
+    if (state.picks.length && state.settings.trackingMode === 'manual' && result.data.trackingMode !== 'manual') {
+      throw new Error('Manual picks cannot be converted to snake order. Export a backup and reset first.');
+    }
     if (state.picks.length && (settings.teamCount !== state.settings.teamCount || settings.myPosition !== state.settings.myPosition || settings.rosterSlots.join(',') !== state.settings.rosterSlots.join(','))) {
       throw new Error('Draft order and roster slots are locked after the first pick. Export a backup, then reset the draft to change them.');
     }
@@ -85,6 +99,48 @@ const actions = {
     const players = parseProjections(csv);
     commit({ ...state, players, picks: [], shortlist: [], source: { label: label.trim(), season: season.trim(), isDemo: false, importedAt: new Date().toISOString() } });
   },
+  loadCurrentProjections(players: Player[], source: ProjectionSource) {
+    if (source.isDemo || players.length < 150) throw new Error('The current projection feed is incomplete. The existing board has not been replaced.');
+    const parsed = players.map(p => playerSchema.parse(p));
+    if (new Set(parsed.map(p => p.id)).size !== parsed.length) throw new Error('The projection feed contains duplicate players.');
+    if (state.picks.length && state.source.isDemo) throw new Error('Your practice draft uses demo IDs. Export it, then reset picks before loading current projections.');
+    if (state.picks.length && state.source.season !== source.season) throw new Error('The feed is for a different season. Export a backup and reset before replacing the season.');
+    // Refreshes preserve picks, local identities and saved players missing from
+    // a new forecast (e.g. a newly injured player with no season projection).
+    const normalize = (name: string) => name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const oldByName = new Map(state.players.map(p => [normalize(p.name), p]));
+    const merged = parsed.map(p => {
+      const old = state.source.isDemo ? undefined : state.players.find(old => old.id === p.id) ?? oldByName.get(normalize(p.name));
+      return old ? { ...p, id: old.id,
+        ...(old.positionsVerified ? { positions: old.positions, positionsVerified: true } : {}),
+        injuryStatus: old.injuryStatus, injuryNote: old.injuryNote, injuryUpdatedAt: old.injuryUpdatedAt, injurySource: old.injurySource, injuryReturnDate: old.injuryReturnDate } : p;
+    });
+    const ids = new Set(merged.map(p => p.id));
+    if (ids.size !== merged.length) throw new Error('Player identity matching was ambiguous. Existing draft was kept.');
+    const missing = state.players.filter(p => !ids.has(p.id) && (analysis.draftedIds.has(p.id) || state.shortlist.includes(p.id)));
+    commit({ ...state, players: [...merged, ...missing], source, shortlist: state.shortlist.filter(id => ids.has(id) || missing.some(p => p.id === id)) });
+  },
+  applyInjuries(reports: { name: string; status: string; note: string; updatedAt?: string; source: string; returnDate?: string }[], checkedAt: string, reportUpdatedAt?: string) {
+    if (state.source.isDemo) throw new Error('Load current projections before checking injuries. Demo identities are not verified.');
+    const normalize = (name: string) => name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(jr|sr|iii|ii|iv)\b/g, '').replace(/[^a-z0-9]/g, '');
+    const byName = new Map(reports.map(r => [normalize(r.name), r]));
+    let matchedPlayers = 0;
+    const players = state.players.map(p => {
+      const report = byName.get(normalize(p.name));
+      if (report) matchedPlayers++;
+      return { ...p, injuryStatus: report?.status, injuryNote: report?.note, injuryUpdatedAt: report?.updatedAt, injurySource: report?.source, injuryReturnDate: report?.returnDate };
+    });
+    commit({ ...state, players, injuryFeed: { checkedAt, source: 'ESPN NBA injury reports', reportUpdatedAt, matchedPlayers, totalReports: reports.length } });
+  },
+  updatePlayerPositions(playerId: string, positions: Position[]) {
+    const old = state.players.find(p => p.id === playerId);
+    if (!old) throw new Error('That player is not in the pool.');
+    const updated = playerSchema.parse({ ...old, positions: [...new Set(positions)], positionsVerified: true });
+    const players = state.players.map(p => p.id === playerId ? updated : p);
+    const roster = state.picks.filter(p => p.team === state.settings.myPosition).map(p => players.find(player => player.id === p.playerId)!);
+    if (assignRoster(roster, state.settings.rosterSlots).fitted < roster.length) throw new Error('Those positions would leave your existing roster without an eligible slot. Correct the pick before changing eligibility.');
+    commit({ ...state, players });
+  },
   resetDraft() {
     commit({ ...state, picks: [], shortlist: [] }, true);
   },
@@ -96,6 +152,9 @@ const actions = {
   exportSession() { return JSON.stringify(state, null, 2); },
   importSession(json: string) { commit(parseSession(json), true); },
 };
+
+export function getDraftSnapshot() { return snapshot; }
+export { actions as draftActions };
 
 /** Single external store keeps shell and all page callers consistent. */
 export function useDraft() {
