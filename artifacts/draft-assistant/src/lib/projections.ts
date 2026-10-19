@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DEMO_PLAYERS } from './demo-players';
+import { LEAGUE_IL_SLOTS, LEAGUE_ROSTER_SLOTS } from './league-roster';
 import type { DraftState, LeagueSettings, Player } from './draft-types';
 
 const positionSchema = z.enum(['PG', 'SG', 'SF', 'PF', 'C']);
@@ -30,6 +31,7 @@ export const settingsSchema = z.object({
   teamCount: z.number().int().min(4).max(20),
   myPosition: z.number().int().min(1).max(20),
   rosterSlots: z.array(slotSchema).min(5).max(20),
+  injuryReserveSlots: z.number().int().min(0).max(10).default(LEAGUE_IL_SLOTS),
   trackingMode: z.enum(['manual', 'snake']).default('manual'),
 }).refine(s => s.myPosition <= s.teamCount, {
   message: 'Your draft position must be within the number of teams.',
@@ -37,7 +39,7 @@ export const settingsSchema = z.object({
 export const DEFAULT_SETTINGS: LeagueSettings = {
   name: 'My Fantasy League', teamCount: 12, myPosition: 6,
   trackingMode: 'manual',
-  rosterSlots: ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'C', 'UTIL', 'UTIL', 'BN', 'BN', 'BN'],
+  rosterSlots: [...LEAGUE_ROSTER_SLOTS], injuryReserveSlots: LEAGUE_IL_SLOTS,
 };
 export function createInitialState(): DraftState {
   return {

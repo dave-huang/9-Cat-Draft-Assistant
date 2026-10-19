@@ -4,7 +4,9 @@ import { Check, RefreshCw, Search, Star, Undo2, X } from 'lucide-react';
 import { useDraft } from '@/hooks/use-draft';
 import { useDraftData } from '@/hooks/use-draft-data';
 import type { Player, Position, Recommendation } from '@/lib/draft-types';
-import { btn, errMsg, field, fmt, Notice, Panel, ZStrip } from '@/components/bits';
+import { btn, ConfirmButton, errMsg, field, fmt, Notice, Panel, ZStrip } from '@/components/bits';
+import { InjuryReserveSlots } from '@/components/InjuryReserveSlots';
+import { isPreviousDefaultRoster } from '@/lib/league-roster';
 
 const FILTERS = ['ALL', 'PG', 'SG', 'G', 'SF', 'PF', 'F', 'C'] as const;
 type Filter = (typeof FILTERS)[number];
@@ -160,11 +162,18 @@ export default function Live() {
               <button className="ml-auto text-xs underline" data-testid="button-switch-manual" onClick={() => run(() => d.updateSettings({ ...state.settings, trackingMode: 'manual' }), 'Switched to manual tracking')}>Switch to manual</button>
             </>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex max-w-full flex-wrap items-center gap-2">
             {flash && <span className="animate-in fade-in rounded bg-accent px-2 py-0.5 font-mono text-[11px] text-accent-foreground" data-testid="text-flash">{flash}</span>}
             <button className={btn.ghost} disabled={state.picks.length === 0} onClick={() => run(d.undoPick, 'Last pick undone')} data-testid="button-undo-bar"><Undo2 className="h-3.5 w-3.5" />Undo</button>
+            <ConfirmButton testId="button-reset-live" label="Reset draft" confirmLabel="Yes, restart draft" disabled={!state.picks.length && !state.shortlist.length && !d.saveError}
+              description={<>Clear every Mine/Taken pick and the shortlist? This cannot be undone. Player data, injuries and league setup stay{isPreviousDefaultRoster(state.settings.rosterSlots) ? ' (the earlier default roster updates to 12 draftable spots + 2 IL)' : ''}. <Link href="/settings" className="underline">Export a backup</Link> first to keep this mock.</>}
+              onConfirm={() => run(() => {
+                d.resetDraft();
+                setQ(''); setFilter('ALL'); setOnlyList(false); setLimit(25);
+              }, 'Draft reset — ready for another mock')} />
           </div>
         </div>
+        {isPreviousDefaultRoster(state.settings.rosterSlots) && <Notice tone="warn" testId="text-legacy-roster">This saved draft uses the earlier 13-player layout. Your picks were kept. Reset the board to start a new mock with your Yahoo roster: 12 draftable spots + 2 IL reserves.</Notice>}
 
         {!manual && (
           <p className="text-[11px] text-muted-foreground">Snake mode assumes every pick is entered in order. If you fall out of sync, switch to manual; picks are kept.</p>
@@ -300,6 +309,7 @@ export default function Live() {
               </li>
             ))}
           </ul>
+            <InjuryReserveSlots count={state.settings.injuryReserveSlots} />
         </Panel>
         <Panel title="Shortlist" aside={<span className="font-mono text-xs">{shortlisted.length}</span>}>
           {shortlisted.length === 0 ? (

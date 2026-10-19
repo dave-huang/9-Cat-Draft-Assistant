@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { analyzeDraft, assignRoster } from '../src/lib/draft-engine';
 import { createInitialState, parseSession } from '../src/lib/projections';
+import { LEAGUE_ROSTER_SLOTS, migrateLeagueRoster } from '../src/lib/league-roster';
 import type { Player } from '../src/lib/draft-types';
 
 const players: Player[] = Array.from({ length: 170 }, (_, i) => ({
@@ -11,6 +12,42 @@ const players: Player[] = Array.from({ length: 170 }, (_, i) => ({
   turnovers: 1 + i % 3, fgm: 5 + i % 4, fga: 12 + i % 4, ftm: 3, fta: 4,
 }));
 const source = { label: 'Synthetic forecasts', season: '2026-27', isDemo: false, provider: 'ESPN', fetchedAt: new Date().toISOString() };
+
+test('league screenshot gives 12 draftable spots and two separate injury reserves, not 14 picks', () => {
+  const state = { ...createInitialState(), players, source };
+  assert.deepEqual(state.settings.rosterSlots, ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL', 'UTIL', 'UTIL', 'BN', 'BN']);
+  assert.equal(state.settings.injuryReserveSlots, 2);
+  const a = analyzeDraft(state);
+  assert.equal(a.totalPicks, state.settings.teamCount * 12);
+  assert.equal(a.rosterAssignment.length, 12);
+  state.picks = players.slice(0, 12).map((p, i) => ({ playerId: p.id, team: state.settings.myPosition, overall: i + 1 }));
+  assert.equal(analyzeDraft(state).complete, true);
+  const restored = parseSession(JSON.stringify(state));
+  assert.equal(restored.settings.injuryReserveSlots, 2);
+  assert.equal(restored.picks.length, 12);
+});
+
+test('existing default roster safely upgrades without deleting a pick, while incompatible old mocks stay intact', () => {
+  const oldSlots = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'C', 'UTIL', 'UTIL', 'BN', 'BN', 'BN'] as const;
+  const old = { ...createInitialState(), players, source };
+  old.settings.rosterSlots = [...oldSlots];
+  old.picks = [{ playerId: players[0]!.id, team: old.settings.myPosition, overall: 1 }];
+  const updated = migrateLeagueRoster(old);
+  assert.deepEqual(updated.settings.rosterSlots, LEAGUE_ROSTER_SLOTS);
+  assert.deepEqual(updated.picks, old.picks);
+  assert.strictEqual(updated.players, old.players);
+  assert.strictEqual(updated.source, old.source);
+  const full = { ...old, picks: players.slice(0, 13).map((p, i) => ({ playerId: p.id, team: old.settings.myPosition, overall: i + 1 })) };
+  assert.strictEqual(migrateLeagueRoster(full), full);
+  const centers = { ...old, players: players.map(p => ({ ...p, positions: ['C'] as Player['positions'] })), picks: full.picks.slice(0, 7) };
+  assert.strictEqual(migrateLeagueRoster(centers), centers);
+  const snake = { ...old, settings: { ...old.settings, trackingMode: 'snake' as const } };
+  assert.strictEqual(migrateLeagueRoster(snake), snake);
+  const custom = { ...old, settings: { ...old.settings, rosterSlots: [...LEAGUE_ROSTER_SLOTS, 'BN' as const] } };
+  assert.strictEqual(migrateLeagueRoster(custom), custom);
+  const restarted = migrateLeagueRoster({ ...full, picks: [], shortlist: [] });
+  assert.deepEqual(restarted.settings.rosterSlots, LEAGUE_ROSTER_SLOTS);
+});
 
 test('manual recommendations exclude every taken player and adapt to the actual roster, not snake order', () => {
   const state = { ...createInitialState(), players, source };
@@ -100,4 +137,26 @@ test('store actions persist picks, correct earlier marks and refresh data withou
   const restored = parseSession(d.exportSession());
   assert.deepEqual(restored.picks, get().state.picks);
   assert.ok(storage.has('nine-cat-draft-v1'));
+  d.toggleShortlist('test-3');
+  const beforeReset = get().state;
+  d.resetDraft();
+  assert.deepEqual(get().state.picks, []);
+  assert.deepEqual(get().state.shortlist, []);
+  assert.strictEqual(get().state.players, beforeReset.players);
+  assert.strictEqual(get().state.source, beforeReset.source);
+  assert.strictEqual(get().state.injuryFeed, beforeReset.injuryFeed);
+  assert.deepEqual(get().state.settings, beforeReset.settings);
+  assert.equal(get().analysis.roster.length, 0);
+  assert.equal(get().analysis.rosterAssignment.filter(s => !s.player).length, 12);
+  assert.equal(get().analysis.recommendations.length, players.length);
+  assert.deepEqual(parseSession(storage.get('nine-cat-draft-v1')!).picks, []);
+  // Injury reserves must not make Mine accept a thirteenth draft pick.
+  for (const p of get().state.players.slice(0, 12)) d.markPick(p.id, 'mine');
+  assert.equal(get().analysis.complete, true);
+  assert.throws(() => d.markPick(get().state.players[12]!.id, 'mine'), /full/);
+  d.markPick(get().state.players[12]!.id, 'taken');
+  assert.equal(get().state.picks.length, 13);
+  d.resetDraft();
+  assert.equal(get().analysis.complete, false);
+  assert.equal(get().state.picks.length, 0);
 });

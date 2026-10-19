@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { analyzeDraft, assignRoster, teamAtPick } from '@/lib/draft-engine';
 import { createInitialState, parseProjections, parseSession, playerSchema, settingsSchema } from '@/lib/projections';
+import { migrateLeagueRoster } from '@/lib/league-roster';
 import type { DraftState, LeagueSettings, Player, Position, ProjectionSource } from '@/lib/draft-types';
 
 const STORAGE_KEY = 'nine-cat-draft-v1';
@@ -9,7 +10,7 @@ let state = createInitialState();
 let saveError: string | null = null;
 try {
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) state = parseSession(stored);
+  if (stored) state = migrateLeagueRoster(parseSession(stored));
 } catch {
   saveError = 'The saved draft could not be loaded. Your previous backup has not been overwritten. Restore a JSON backup or explicitly reset before continuing.';
 }
@@ -45,7 +46,7 @@ window.addEventListener('storage', event => {
     return;
   }
   try {
-    state = parseSession(event.newValue);
+    state = migrateLeagueRoster(parseSession(event.newValue));
     analysis = analyzeDraft(state);
     saveError = null;
     protectedStorage = false;
@@ -142,7 +143,7 @@ const actions = {
     commit({ ...state, players });
   },
   resetDraft() {
-    commit({ ...state, picks: [], shortlist: [] }, true);
+    commit(migrateLeagueRoster({ ...state, picks: [], shortlist: [] }), true);
   },
   toggleShortlist(playerId: string) {
     if (!state.players.some(p => p.id === playerId)) throw new Error('That player is not in the projection pool.');
@@ -150,7 +151,7 @@ const actions = {
     commit({ ...state, shortlist: state.shortlist.includes(playerId) ? state.shortlist.filter(id => id !== playerId) : [...state.shortlist, playerId] });
   },
   exportSession() { return JSON.stringify(state, null, 2); },
-  importSession(json: string) { commit(parseSession(json), true); },
+  importSession(json: string) { commit(migrateLeagueRoster(parseSession(json)), true); },
 };
 
 export function getDraftSnapshot() { return snapshot; }

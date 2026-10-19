@@ -56,7 +56,7 @@ export const field =
   'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring disabled:opacity-50';
 
 /** Two-step inline confirmation. */
-export function ConfirmButton({ label, confirmLabel, onConfirm, disabled, testId, danger = true }: { label: string; confirmLabel: string; onConfirm: () => void; disabled?: boolean; testId: string; danger?: boolean }) {
+export function ConfirmButton({ label, confirmLabel, onConfirm, disabled, testId, danger = true, description }: { label: string; confirmLabel: string; onConfirm: () => void; disabled?: boolean; testId: string; danger?: boolean; description?: ReactNode }) {
   const [armed, setArmed] = useState(false);
   if (!armed)
     return (
@@ -65,13 +65,16 @@ export function ConfirmButton({ label, confirmLabel, onConfirm, disabled, testId
       </button>
     );
   return (
-    <span className="inline-flex items-center gap-2" data-testid={`${testId}-confirm`}>
-      <button type="button" autoFocus className={btn.danger} data-testid={`${testId}-yes`} onClick={() => { setArmed(false); onConfirm(); }}>
-        {confirmLabel}
-      </button>
-      <button type="button" className={btn.ghost} data-testid={`${testId}-no`} onClick={() => setArmed(false)}>
-        Cancel
-      </button>
+    <span className="inline-flex max-w-full flex-col items-start gap-2" data-testid={`${testId}-confirm`}>
+      {description && <span className="max-w-xs text-xs text-muted-foreground">{description}</span>}
+      <span className="inline-flex flex-wrap items-center gap-2">
+        <button type="button" autoFocus className={btn.danger} data-testid={`${testId}-yes`} onClick={() => { setArmed(false); onConfirm(); }}>
+          {confirmLabel}
+        </button>
+        <button type="button" className={btn.ghost} data-testid={`${testId}-no`} onClick={() => setArmed(false)}>
+          Cancel
+        </button>
+      </span>
     </span>
   );
 }

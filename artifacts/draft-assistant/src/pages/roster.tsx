@@ -1,6 +1,7 @@
 import { Link } from 'wouter';
 import { useDraft } from '@/hooks/use-draft';
 import { Notice, Panel, btn, fmt } from '@/components/bits';
+import { InjuryReserveSlots } from '@/components/InjuryReserveSlots';
 
 const STATUS: Record<string, { text: string; cls: string }> = {
   strong: { text: 'Strong', cls: 'bg-accent text-accent-foreground' },
@@ -10,7 +11,7 @@ const STATUS: Record<string, { text: string; cls: string }> = {
 };
 
 export default function Roster() {
-  const { analysis: a } = useDraft();
+  const { analysis: a, state } = useDraft();
   const filled = a.rosterAssignment.filter((s) => s.player).length;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -33,6 +34,7 @@ export default function Roster() {
             </li>
           ))}
         </ul>
+        <InjuryReserveSlots count={state.settings.injuryReserveSlots} />
       </Panel>
 
       <div className="space-y-4">

@@ -3,11 +3,11 @@ import { Download, Plus, X } from 'lucide-react';
 import { useDraft } from '@/hooks/use-draft';
 import type { RosterSlot } from '@/lib/draft-types';
 import { CSV_TEMPLATE } from '@/lib/projections';
+import { LEAGUE_IL_SLOTS, LEAGUE_ROSTER_SLOTS } from '@/lib/league-roster';
 import { DraftDataPanel } from '@/components/DraftDataPanel';
 import { btn, ConfirmButton, errMsg, field, Notice, Panel } from '@/components/bits';
 
 const SLOT_OPTIONS: RosterSlot[] = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL', 'BN'];
-const DEFAULT_SLOTS: RosterSlot[] = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'C', 'UTIL', 'UTIL', 'BN', 'BN', 'BN'];
 
 function download(name: string, text: string, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -41,6 +41,7 @@ export default function Settings() {
   const [teams, setTeams] = useState(String(state.settings.teamCount));
   const [pos, setPos] = useState(String(state.settings.myPosition));
   const [slots, setSlots] = useState<RosterSlot[]>(state.settings.rosterSlots);
+  const [ilSlots, setIlSlots] = useState(String(state.settings.injuryReserveSlots));
   const [lm, setLm] = useState<{ ok: boolean; t: string } | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -56,11 +57,12 @@ export default function Settings() {
     setTeams(String(state.settings.teamCount));
     setPos(String(state.settings.myPosition));
     setSlots(state.settings.rosterSlots);
+    setIlSlots(String(state.settings.injuryReserveSlots));
   }, [state.settings]);
 
   const saveLeague = () => {
     try {
-      d.updateSettings({ name: name.trim(), teamCount: Number(teams), myPosition: Number(pos), rosterSlots: slots });
+      d.updateSettings({ ...state.settings, name: name.trim(), teamCount: Number(teams), myPosition: Number(pos), rosterSlots: slots, injuryReserveSlots: Number(ilSlots) });
       setLm({ ok: true, t: 'League settings saved.' });
     } catch (e) {
       setLm({ ok: false, t: errMsg(e) });
@@ -91,8 +93,13 @@ export default function Settings() {
           </div>
           <div className="mt-4">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Roster slots ({slots.length})</span>
-              <button className="text-xs underline disabled:opacity-40" disabled={frozen} onClick={() => setSlots(DEFAULT_SLOTS)} data-testid="button-default-slots">Standard</button>
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Draftable roster slots ({slots.length})</span>
+              <button className="text-xs underline disabled:opacity-40" disabled={frozen} onClick={() => { setSlots([...LEAGUE_ROSTER_SLOTS]); setIlSlots(String(LEAGUE_IL_SLOTS)); }} data-testid="button-default-slots">Use my Yahoo roster</button>
+            </div>
+            <div className="mt-3 max-w-sm">
+              <L label="IL reserve spots" hint="Your league: 12 draft picks + 2 IL reserves. IL does not add draft rounds or accept additional draft picks.">
+                <input type="number" min={0} max={10} className={field} value={ilSlots} onChange={e => setIlSlots(e.target.value)} data-testid="input-il-slots" />
+              </L>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {slots.map((s, i) => (
@@ -170,7 +177,7 @@ export default function Settings() {
 
         <Panel title="Reset draft">
           <p className="mb-3 text-sm text-muted-foreground">Clears all picks and the shortlist. Your projections and league setup stay.</p>
-          <ConfirmButton testId="button-reset" label="Reset draft" confirmLabel="Yes, clear picks" disabled={!frozen && state.shortlist.length === 0 && !d.saveError} onConfirm={() => {
+          <ConfirmButton testId="button-reset" label="Reset draft" confirmLabel="Yes, clear picks" description="This permanently clears picks and the shortlist for this draft. Export a session backup first if you want to keep the mock. Players, injury data and league settings stay; the earlier default roster, if present, updates to your Yahoo layout." disabled={!frozen && state.shortlist.length === 0 && !d.saveError} onConfirm={() => {
             try { d.resetDraft(); setRm({ ok: true, t: 'Draft reset.' }); } catch (x) { setRm({ ok: false, t: errMsg(x) }); }
           }} />
           <div className="mt-2"><Msg m={rm} /></div>

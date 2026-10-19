@@ -35,6 +35,7 @@ export interface LeagueSettings {
   teamCount: number;
   myPosition: number;
   rosterSlots: RosterSlot[];
+  injuryReserveSlots: number;
   trackingMode?: 'manual' | 'snake';
 }
 export interface Pick {
