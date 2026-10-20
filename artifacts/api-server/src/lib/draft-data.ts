@@ -101,7 +101,7 @@ export function parseEspnInjuries(payload: unknown, checkedAt: string, season = 
   return GetDraftInjuriesResponse.parse({ reports, checkedAt, reportUpdatedAt, source: 'https://www.espn.com/nba/injuries' });
 }
 
-async function providerJson(url: string, fetcher: typeof fetch, headers?: Record<string, string>): Promise<unknown> {
+export async function providerJson(url: string, fetcher: typeof fetch, headers?: Record<string, string>): Promise<unknown> {
   const response = await fetcher(url, { headers: { Accept: 'application/json', ...headers }, signal: AbortSignal.timeout(20_000), redirect: 'error' });
   if (response.status !== 200 || !response.body) throw new Error('The public data provider is unavailable. Your saved draft is unchanged.');
   const reader = response.body.getReader();

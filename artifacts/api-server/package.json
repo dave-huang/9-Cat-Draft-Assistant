@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:yahoo": "esbuild tests/yahoo.test.ts --bundle --platform=node --format=cjs --external:pg-native --outfile=/tmp/draft-yahoo-tests.cjs && node --test /tmp/draft-yahoo-tests.cjs",
     "test:draft-data": "esbuild tests/draft-data.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-feed-tests.cjs && node --test /tmp/nba-feed-tests.cjs",
-    "test:eligibility": "esbuild tests/yahoo-eligibility.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-eligibility-tests.cjs && node --test /tmp/nba-eligibility-tests.cjs"
+    "test:eligibility": "esbuild tests/yahoo-eligibility.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-eligibility-tests.cjs && node --test /tmp/nba-eligibility-tests.cjs",
+    "test:schedule": "esbuild tests/nba-schedule.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-schedule-tests.cjs && node --test /tmp/nba-schedule-tests.cjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

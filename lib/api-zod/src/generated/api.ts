@@ -9,6 +9,37 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Complete NBA regular-season schedule for an inclusive matchup date window
+ */
+export const GetNbaScheduleQueryParams = zod.object({
+  "start": zod.date(),
+  "end": zod.date()
+})
+
+export const getNbaScheduleResponseStartRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getNbaScheduleResponseEndRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getNbaScheduleResponseGamesItemDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getNbaScheduleResponseGamesMax = 300;
+
+
+
+export const GetNbaScheduleResponse = zod.object({
+  "start": zod.string().regex(getNbaScheduleResponseStartRegExp),
+  "end": zod.string().regex(getNbaScheduleResponseEndRegExp),
+  "games": zod.array(zod.object({
+  "id": zod.string(),
+  "date": zod.string().regex(getNbaScheduleResponseGamesItemDateRegExp),
+  "homeTeam": zod.string(),
+  "awayTeam": zod.string(),
+  "status": zod.enum(['scheduled', 'in-progress', 'final', 'postponed', 'canceled'])
+})).max(getNbaScheduleResponseGamesMax),
+  "fetchedAt": zod.coerce.date(),
+  "source": zod.string().url(),
+  "season": zod.string()
+})
+
+
+/**
  * @summary Standard Yahoo NBA position eligibility from the public Draft Analysis data
  */
 export const getDraftEligibilityResponsePlayersItemYahooIdRegExp = new RegExp('^[0-9]+$');

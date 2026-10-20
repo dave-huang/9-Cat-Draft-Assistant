@@ -203,6 +203,16 @@ test('store actions persist picks, correct earlier marks and refresh data withou
   assert.deepEqual(get().state.players[0]!.positions, players[0]!.positions);
   assert.equal(get().state.players[0]!.positionsSource, 'Yahoo');
   d.toggleShortlist('test-3');
+  d.updateMatchup({ start: '2026-10-19', end: '2026-10-25', myRosterIds: ['test-1', 'test-2'], myReserveIds: ['test-2'],
+    opponentRosterIds: ['test-3'], opponentStarterIds: ['test-3'], expectedGames: { 'test-1': 1.5 } });
+  const savedWeekly = get().state.matchup;
+  assert.deepEqual(parseSession(d.exportSession()).matchup, savedWeekly);
+  const picksBeforeWeeklyRefresh = get().state.picks;
+  d.loadCurrentProjections(players.filter(p => p.id !== 'test-3'), newSource);
+  assert.strictEqual(get().state.picks, picksBeforeWeeklyRefresh);
+  assert.deepEqual(get().state.matchup, savedWeekly);
+  assert.equal(get().state.players.find(p => p.id === 'test-3')!.projectionUnavailable, true);
+  assert.throws(() => d.updateMatchup({ ...savedWeekly, opponentRosterIds: ['test-1'] }), /unique|roster/i);
   const beforeReset = get().state;
   d.resetDraft();
   assert.deepEqual(get().state.picks, []);
@@ -211,6 +221,7 @@ test('store actions persist picks, correct earlier marks and refresh data withou
   assert.strictEqual(get().state.source, beforeReset.source);
   assert.strictEqual(get().state.injuryFeed, beforeReset.injuryFeed);
   assert.strictEqual(get().state.eligibilityFeed, beforeReset.eligibilityFeed);
+  assert.strictEqual(get().state.matchup, beforeReset.matchup);
   assert.deepEqual(get().state.settings, beforeReset.settings);
   assert.equal(get().analysis.roster.length, 0);
   assert.equal(get().analysis.rosterAssignment.filter(s => !s.player).length, 12);

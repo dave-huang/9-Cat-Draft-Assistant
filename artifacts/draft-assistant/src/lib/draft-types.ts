@@ -35,6 +35,16 @@ export interface Player {
   positionsFetchedAt?: string;
   yahooEligibilityMissing?: boolean;
   positionsConflict?: boolean;
+  projectionUnavailable?: boolean;
+}
+export interface WeeklyPlannerState {
+  start: string;
+  end: string;
+  myRosterIds: string[];
+  myReserveIds?: string[];
+  opponentRosterIds: string[];
+  opponentStarterIds: string[];
+  expectedGames: Record<string, number>;
 }
 export interface LeagueSettings {
   name: string;
@@ -69,6 +79,7 @@ export interface DraftState {
   source: ProjectionSource;
   picks: Pick[];
   shortlist: string[];
+  matchup?: WeeklyPlannerState;
   eligibilityFeed?: {
     season: string;
     source: string;

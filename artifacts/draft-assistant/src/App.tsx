@@ -7,6 +7,7 @@ import NotFound from '@/pages/not-found';
 import { Shell } from '@/components/shell';
 import Live from '@/pages/live';
 import Roster from '@/pages/roster';
+import Weekly from '@/pages/weekly';
 import Settings from '@/pages/settings';
 import {
   Route,
@@ -25,6 +26,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Live} />
         <Route path="/roster" component={Roster} />
+        <Route path="/weekly" component={Weekly} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

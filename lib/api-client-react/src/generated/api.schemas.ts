@@ -5,6 +5,38 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type NbaGameStatus = typeof NbaGameStatus[keyof typeof NbaGameStatus];
+
+
+export const NbaGameStatus = {
+  scheduled: 'scheduled',
+  'in-progress': 'in-progress',
+  final: 'final',
+  postponed: 'postponed',
+  canceled: 'canceled',
+} as const;
+
+export interface NbaGame {
+  id: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  date: string;
+  homeTeam: string;
+  awayTeam: string;
+  status: NbaGameStatus;
+}
+
+export interface NbaSchedule {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  start: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  end: string;
+  /** @maxItems 300 */
+  games: NbaGame[];
+  fetchedAt: string;
+  source: string;
+  season: string;
+}
+
 export type DraftEligibilityPlayerPositionsItem = typeof DraftEligibilityPlayerPositionsItem[keyof typeof DraftEligibilityPlayerPositionsItem];
 
 
@@ -174,6 +206,11 @@ export interface YahooLeagues {
 export interface HealthStatus {
   status: string;
 }
+
+export type GetNbaScheduleParams = {
+start: string;
+end: string;
+};
 
 export type CompleteYahooAuthorizationParams = {
 state?: string;

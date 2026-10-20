@@ -1,6 +1,6 @@
 # 9-Cat Draft Assistant
 
-A personal live-draft companion for Yahoo Fantasy Basketball head-to-head nine-category leagues.
+A personal draft and weekly-lineup companion for Yahoo Fantasy Basketball head-to-head nine-category leagues.
 
 ## Run & Operate
 
@@ -15,6 +15,8 @@ A personal live-draft companion for Yahoo Fantasy Basketball head-to-head nine-c
 - `pnpm --filter @workspace/api-server run test:draft-data` — current-season forecast parsing, zero-three centers, shooting validation, report freshness and request caching
 - `pnpm --filter @workspace/api-server run test:eligibility` — anonymous public Yahoo discovery, actual eligibility, season/format checks, complete pagination, caching and denied-access failures
 - `pnpm --filter @workspace/draft-assistant run test:draft` — nine-category scoring, manual pick correction, eligibility overrides, refresh-safe identities and draft persistence
+- `pnpm --filter @workspace/draft-assistant run test:weekly` — weekly game-weighted totals, shooting ratios, availability, exhaustive lineup selection and weekly backups
+- `pnpm --filter @workspace/api-server run test:schedule` — inclusive date windows, Eastern game dates, season/status validation, complete schedule retrieval and cache behavior
 
 ## Stack
 
@@ -29,9 +31,10 @@ A personal live-draft companion for Yahoo Fantasy Basketball head-to-head nine-c
 
 - `artifacts/draft-assistant/src/lib/draft-types.ts` — domain contracts
 - `artifacts/draft-assistant/src/lib/draft-engine.ts` — nine-category ranking and roster matching
+- `artifacts/draft-assistant/src/lib/weekly-engine.ts` — weekly projections and exhaustive legal-lineup optimization under an explicitly simplified model
 - `artifacts/draft-assistant/src/lib/projections.ts` — CSV and draft backup validation
 - `artifacts/draft-assistant/src/hooks/use-draft.ts` — shared browser state and persistence
-- `artifacts/draft-assistant/src/pages/` — live draft, roster, and settings
+- `artifacts/draft-assistant/src/pages/` — live draft, roster, weekly matchup and settings
 
 ## Architecture decisions
 
@@ -43,10 +46,16 @@ A personal live-draft companion for Yahoo Fantasy Basketball head-to-head nine-c
 - Preserve existing draft picks when current data is refreshed, with explicit provenance and separate injury-report times. **Why:** a feed update during a live draft must not erase selections or misrepresent retrieval time as a newly published forecast.
 - Use Yahoo for position eligibility and ESPN for projections, injuries and ADP. Manual position corrections take priority. **Why:** the user explicitly chose Yahoo eligibility after the public, no-sign-in route was verified; ESPN eligibility differs from the Yahoo draft.
 - Keep any legacy Yahoo credentials/tokens secure and out of draft backups; do not delete them as part of a manual-mode UI change. **Why:** abandoning setup is not consent to delete an existing connection.
+- Weekly starters lock for the entire matchup; each category win counts separately in the standings. **Why:** the user confirmed both league rules. Optimize the sum of nine equally valued expected category points, not the chance of at least five wins.
+- Keep the current weekly roster separate from draft history after initially seeding from Mine picks. **Why:** the draft is over and the user now needs week-to-week management, including roster changes; editing the weekly team must not rewrite draft picks.
 
 ## Product
 
 Manual Mine/Taken tracking (with optional legacy snake mode), roster-aware nine-category recommendations, positional filters, shortlist, undo and correction of prior picks, league settings, current ESPN season projections, separately refreshed injury reports, CSV projection imports, and browser persistence with JSON backup/restore. This app neither submits Yahoo picks nor promises calibrated win odds or mathematically optimal picks. Yahoo syncing is out of the current product scope.
+
+The Weekly page supports editable own/opponent rosters, explicit opponent locked starters versus bench, separate own IL reserves, matchup dates, injury-aware expected-game overrides and recommended weekly starters. Counting stats are per-game projections multiplied by expected active games. FG% and FT% are total projected makes divided by total projected attempts; neither player percentages nor season GP are averaged into weekly totals. Bench and IL do not score. Schedules use Eastern game dates; postponed/canceled and non-regular-season games are excluded. Matchup dates are user-specified (1–14 inclusive days) to accommodate shortened/extended Yahoo weeks.
+
+Weekly optimization exhaustively searches legal subsets, allowing vacancies, using independent Poisson counting and conditional-binomial shooting normal approximations. It is optimal only under that simplified stated objective/model, not calibrated real-world odds. Out/injured players conservatively default to zero games; questionable/day-to-day default to the schedule with a warning. The user can override availability; no injury label or return date is medical clearance. Weekly state is included in existing browser persistence and JSON backups. Failed or partial schedule windows must never be presented as valid zero-game forecasts. The tool does not submit lineups or change already-locked Yahoo starters.
 
 ## User preferences
 

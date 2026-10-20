@@ -24,7 +24,9 @@ import type {
   DraftEligibilityFeed,
   DraftInjuryFeed,
   DraftProjectionFeed,
+  GetNbaScheduleParams,
   HealthStatus,
+  NbaSchedule,
   YahooAuthorization,
   YahooConsent,
   YahooDisconnected,
@@ -59,6 +61,90 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetNbaScheduleUrl = (params: GetNbaScheduleParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/draft-data/schedule?${stringifiedParams}` : `/api/draft-data/schedule`
+}
+
+/**
+ * @summary Complete NBA regular-season schedule for an inclusive matchup date window
+ */
+export const getNbaSchedule = async (params: GetNbaScheduleParams, options?: Parameters<typeof customFetch>[1]): Promise<NbaSchedule> => {
+
+  return customFetch<NbaSchedule>(getGetNbaScheduleUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNbaScheduleQueryKey = (params?: GetNbaScheduleParams,) => {
+    return [
+    `/api/draft-data/schedule`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNbaScheduleQueryOptions = <TData = Awaited<ReturnType<typeof getNbaSchedule>>, TError = ErrorType<YahooError>>(params: GetNbaScheduleParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNbaSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNbaScheduleQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNbaSchedule>>> = ({ signal }) => getNbaSchedule(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNbaSchedule>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNbaScheduleQueryResult = NonNullable<Awaited<ReturnType<typeof getNbaSchedule>>>
+export type GetNbaScheduleQueryError = ErrorType<YahooError>
+
+
+/**
+ * @summary Complete NBA regular-season schedule for an inclusive matchup date window
+ */
+
+export function useGetNbaSchedule<TData = Awaited<ReturnType<typeof getNbaSchedule>>, TError = ErrorType<YahooError>>(
+ params: GetNbaScheduleParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNbaSchedule>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNbaScheduleQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetDraftEligibilityUrl = () => {
 

@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Activity, Settings as Cog, Users } from 'lucide-react';
+import { Activity, CalendarDays, Settings as Cog, Users } from 'lucide-react';
 import { useDraft } from '@/hooks/use-draft';
 
 const NAV = [
   { href: '/', label: 'Live draft', icon: Activity },
   { href: '/roster', label: 'Roster', icon: Users },
+  { href: '/weekly', label: 'Weekly', icon: CalendarDays },
   { href: '/settings', label: 'Settings', icon: Cog },
 ];
 
@@ -56,7 +57,7 @@ export function Shell({ children }: { children: ReactNode }) {
         {saveError && <div role="alert" className="mb-4 rounded-md border border-destructive bg-destructive/10 p-3 text-sm" data-testid="text-save-error">{saveError}</div>}
         {children}
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-sidebar-border bg-sidebar text-sidebar-foreground md:hidden" aria-label="Primary mobile">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-sidebar-border bg-sidebar text-sidebar-foreground md:hidden" aria-label="Primary mobile">
         {NAV.map((n) => {
           const on = loc === n.href;
           return (

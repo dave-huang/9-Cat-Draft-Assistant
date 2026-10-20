@@ -29,6 +29,7 @@ export const playerSchema = z.object({
   positionsFetchedAt: z.string().optional(),
   yahooEligibilityMissing: z.boolean().optional(),
   positionsConflict: z.boolean().optional(),
+  projectionUnavailable: z.boolean().optional(),
 }).refine(p => p.fgm <= p.fga && p.ftm <= p.fta && p.threes <= p.fgm, {
   message: 'Makes cannot exceed attempts; three-point makes cannot exceed field-goal makes.',
 });
@@ -135,6 +136,20 @@ export function parseProjections(text: string): Player[] {
   });
 }
 
+export const matchupSchema = z.object({
+  start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  myRosterIds: z.array(z.string()).max(18),
+  myReserveIds: z.array(z.string()).max(10).optional(),
+  opponentRosterIds: z.array(z.string()).max(18),
+  opponentStarterIds: z.array(z.string()).max(18),
+  expectedGames: z.record(z.string(), z.number().min(0).max(14)),
+}).refine(m => {
+  const all = [...m.myRosterIds, ...m.opponentRosterIds];
+  return new Set(all).size === all.length && new Set(m.opponentStarterIds).size === m.opponentStarterIds.length &&
+    m.opponentStarterIds.every(id => m.opponentRosterIds.includes(id)) &&
+    new Set(m.myReserveIds ?? []).size === (m.myReserveIds?.length ?? 0) && (m.myReserveIds ?? []).every(id => m.myRosterIds.includes(id));
+}, { message: 'Weekly roster identities must be unique and opponent starters must belong to that roster.' });
 const stateSchema = z.object({
   version: z.literal(1),
   settings: settingsSchema,
@@ -150,6 +165,7 @@ const stateSchema = z.object({
     playerId: z.string(), team: z.number().int().min(0).max(20), overall: z.number().int().positive(),
   })).max(3000),
   shortlist: z.array(z.string()).max(3000),
+  matchup: matchupSchema.optional(),
   eligibilityFeed: z.object({
     season: z.string(), source: z.string(), fetchedAt: z.string(), checkedAt: z.string(),
     totalPlayers: z.number().int().nonnegative().max(3000),
@@ -188,5 +204,6 @@ export function parseSession(json: string): DraftState {
   const mine = state.picks.filter(p => p.team === state.settings.myPosition).map(p => state.players.find(player => player.id === p.playerId)!);
   if (mine.length > state.settings.rosterSlots.length) throw new Error('The backup has more of your picks than roster spots.');
   if (state.shortlist.some(id => !ids.has(id))) throw new Error('The backup shortlist contains a missing player.');
+  if (state.matchup && [...state.matchup.myRosterIds, ...state.matchup.opponentRosterIds].some(id => !ids.has(id))) throw new Error('The weekly matchup contains a missing player.');
   return state;
 }

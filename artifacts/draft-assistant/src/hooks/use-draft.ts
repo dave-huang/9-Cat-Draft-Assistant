@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { analyzeDraft, assignRoster, teamAtPick } from '@/lib/draft-engine';
-import { createInitialState, parseProjections, parseSession, playerSchema, settingsSchema } from '@/lib/projections';
+import { createInitialState, matchupSchema, parseProjections, parseSession, playerSchema, settingsSchema } from '@/lib/projections';
 import { migrateLeagueRoster } from '@/lib/league-roster';
 import { withYahooEligibility } from '@/lib/eligibility';
 import type { DraftEligibilityFeed } from '@workspace/api-client-react';
@@ -107,6 +107,7 @@ const actions = {
     const parsed = players.map(p => playerSchema.parse(p));
     if (new Set(parsed.map(p => p.id)).size !== parsed.length) throw new Error('The projection feed contains duplicate players.');
     if (state.picks.length && state.source.isDemo) throw new Error('Your practice draft uses demo IDs. Export it, then reset picks before loading current projections.');
+    if (state.source.isDemo && ((state.matchup?.myRosterIds.length ?? 0) || (state.matchup?.opponentRosterIds.length ?? 0))) throw new Error('Your weekly roster contains demo players. Export a backup and remove those weekly players before loading real projections.');
     if (state.picks.length && state.source.season !== source.season) throw new Error('The feed is for a different season. Export a backup and reset before replacing the season.');
     // Refreshes preserve picks, local identities and saved players missing from
     // a new forecast (e.g. a newly injured player with no season projection).
@@ -125,13 +126,21 @@ const actions = {
     });
     const ids = new Set(merged.map(p => p.id));
     if (ids.size !== merged.length) throw new Error('Player identity matching was ambiguous. Existing draft was kept.');
-    const missing = state.players.filter(p => !ids.has(p.id) && (analysis.draftedIds.has(p.id) || state.shortlist.includes(p.id)));
+    const weeklyIds = new Set([...(state.matchup?.myRosterIds ?? []), ...(state.matchup?.opponentRosterIds ?? [])]);
+    const missing = state.players.filter(p => !ids.has(p.id) && (analysis.draftedIds.has(p.id) || state.shortlist.includes(p.id) || weeklyIds.has(p.id))).map(p => ({ ...p, projectionUnavailable: true }));
     commit({ ...state, players: [...merged, ...missing], source,
       eligibilityFeed: state.source.season === source.season ? state.eligibilityFeed : undefined,
       shortlist: state.shortlist.filter(id => ids.has(id) || missing.some(p => p.id === id)) });
   },
   applyYahooEligibility(feed: DraftEligibilityFeed) {
     commit(withYahooEligibility(state, feed, new Date().toISOString()));
+  },
+  updateMatchup(input: unknown) {
+    const result = matchupSchema.safeParse(input);
+    if (!result.success) throw new Error(result.error.issues[0]?.message ?? 'Invalid weekly planner settings.');
+    const ids = new Set(state.players.map(p => p.id));
+    if ([...result.data.myRosterIds, ...result.data.opponentRosterIds].some(id => !ids.has(id))) throw new Error('A selected player is missing from the projection pool.');
+    commit({ ...state, matchup: result.data });
   },
   applyInjuries(reports: { name: string; status: string; note: string; updatedAt?: string; source: string; returnDate?: string }[], checkedAt: string, reportUpdatedAt?: string) {
     if (state.source.isDemo) throw new Error('Load current projections before checking injuries. Demo identities are not verified.');

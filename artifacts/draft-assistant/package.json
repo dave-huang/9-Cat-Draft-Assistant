@@ -8,7 +8,8 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:draft": "pnpm --filter @workspace/api-server exec esbuild ../draft-assistant/tests/draft.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-draft-tests.cjs && node --test /tmp/nba-draft-tests.cjs"
+    "test:draft": "pnpm --filter @workspace/api-server exec esbuild ../draft-assistant/tests/draft.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-draft-tests.cjs && node --test /tmp/nba-draft-tests.cjs",
+    "test:weekly": "pnpm --filter @workspace/api-server exec esbuild ../draft-assistant/tests/weekly.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-weekly-tests.cjs && node --test /tmp/nba-weekly-tests.cjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
