@@ -24,7 +24,7 @@ test('Gemini uses server header credential, inline image, strict JSON and no too
   const calls: unknown[] = [];
   const fetcher: typeof fetch = async (url, options) => {
     assert.equal(String(url).startsWith('https://generativelanguage.googleapis.com/'), true);
-    assert.equal(String(url).includes('gemini-3.5-flash:generateContent'), true);
+    assert.equal(String(url).includes('gemini-3.5-flash-lite:generateContent'), true);
     assert.equal(String(url).includes('test-key'), false);
     assert.equal((options?.headers as Record<string, string>)['x-goog-api-key'], 'test-key');
     const body = JSON.parse(String(options?.body)); calls.push(body);

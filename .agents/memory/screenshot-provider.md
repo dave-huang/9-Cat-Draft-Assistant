@@ -3,9 +3,9 @@ name: Screenshot recognition provider choice
 description: The user's explicit provider and credential preference for lineup screenshots.
 ---
 
-Use Gemini with the user's own API key for lineup screenshot recognition, not OpenAI or automatically provisioned AI billing.
+Use Gemini 3.5 Flash-Lite with the user's own API key for lineup screenshot recognition, not OpenAI or automatically provisioned AI billing.
 
-**Why:** The user explicitly said, “I want to use Gemini for this and my own API key.”
+**Why:** The user explicitly said, “I want to use Gemini for this and my own API key,” and later chose, “Let's use gemini 3.5 flash-lite.”
 
 **How to apply:** Preserve this provider/credential choice when improving screenshot recognition. Do not switch to another provider or managed billing without asking.
 

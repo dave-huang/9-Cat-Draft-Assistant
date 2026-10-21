@@ -50,7 +50,7 @@ export async function readScreenshot(
   if (!key) throw new ScreenshotError(503, 'gemini_not_configured', 'Screenshot import needs GEMINI_API_KEY configured on the server. Manual lineup entry still works.');
   let response: Response;
   try {
-    response = await (options.fetcher ?? fetch)('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
+    response = await (options.fetcher ?? fetch)('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       signal: AbortSignal.timeout(80_000),
       body: JSON.stringify({
