@@ -29,6 +29,7 @@ import type {
   LineupScreenshotInput,
   LineupScreenshotReading,
   NbaSchedule,
+  SeasonActualsFeed,
   YahooAuthorization,
   YahooConsent,
   YahooDisconnected,
@@ -378,6 +379,83 @@ export function useGetDraftProjections<TData = Awaited<ReturnType<typeof getDraf
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDraftProjectionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSeasonActualsUrl = () => {
+
+
+
+
+  return `/api/draft-data/actuals`
+}
+
+/**
+ * @summary Current regular-season actual per-game NBA statistics, not projections
+ */
+export const getSeasonActuals = async ( options?: Parameters<typeof customFetch>[1]): Promise<SeasonActualsFeed> => {
+
+  return customFetch<SeasonActualsFeed>(getGetSeasonActualsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSeasonActualsQueryKey = () => {
+    return [
+    `/api/draft-data/actuals`
+    ] as const;
+    }
+
+
+export const getGetSeasonActualsQueryOptions = <TData = Awaited<ReturnType<typeof getSeasonActuals>>, TError = ErrorType<YahooError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeasonActuals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSeasonActualsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeasonActuals>>> = ({ signal }) => getSeasonActuals({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSeasonActuals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSeasonActualsQueryResult = NonNullable<Awaited<ReturnType<typeof getSeasonActuals>>>
+export type GetSeasonActualsQueryError = ErrorType<YahooError>
+
+
+/**
+ * @summary Current regular-season actual per-game NBA statistics, not projections
+ */
+
+export function useGetSeasonActuals<TData = Awaited<ReturnType<typeof getSeasonActuals>>, TError = ErrorType<YahooError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSeasonActuals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSeasonActualsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -4,6 +4,7 @@ import { CAT_LABEL, ConfirmButton, Notice, Panel, btn, errMsg, field, fmt } from
 import { PlayerSearch, pct } from '@/components/weekly-parts';
 import { OpponentScreenshotImport } from '@/components/opponent-screenshot-import';
 import { LineupBoard } from '@/components/weekly-lineup-board';
+import { WeeklyStatsBasis } from '@/components/weekly-stats-basis';
 import { useLineupInteraction } from '@/hooks/use-lineup-interaction';
 import type { CategoryKey, Player, Position } from '@/lib/draft-types';
 
@@ -29,10 +30,11 @@ export default function Weekly() {
   const sv = start ?? planner.start, ev = end ?? planner.end;
   const demo = draft.state.source.isDemo;
   const unverified = [...w.mine, ...w.opponent].filter(({ player: p }) => !p.positionsVerified && p.positionsSource !== 'Manual' && (p.positionsSource !== 'Yahoo' || p.yahooEligibilityMissing || p.positionsConflict));
-  const stale = [...w.mine, ...w.opponent].some(r => r.player.projectionUnavailable);
+  const stale = [...w.mine, ...w.opponent].some(r => r.player.projectionUnavailable && r.player.weeklyStats?.basis !== 'actuals');
 
   let guard: string | null = null;
   if (demo) guard = 'Demo projections are illustrative. Load real projections in Settings to analyze a week.';
+  else if (!w.statsReady) guard = w.statsError ?? 'Loading season-to-date statistics...';
   else if (!w.validDates) guard = 'Choose valid inclusive dates spanning 1 to 14 days.';
   else if (w.scheduleLoading) guard = 'Loading schedule...';
   else if (w.scheduleError || !schedule) guard = 'Schedule unavailable. Retry to analyze.';
@@ -80,8 +82,12 @@ export default function Weekly() {
           <span className="ml-auto text-[11px] text-muted-foreground">{w.scheduleLoading ? 'Loading schedule…' : schedule ? `${schedule.games.length} scheduled games · ${schedule.season}` : 'Schedule not loaded'}</span>
         </div>
         {(sv !== planner.start || ev !== planner.end) && <p className="mt-2 text-xs font-semibold text-primary">Unapplied dates. Forecast still uses {planner.start} through {planner.end}. Applying dates clears expected-games overrides; rosters stay.</p>}
+        <WeeklyStatsBasis basis={w.statsBasis} onChange={basis => run(() => w.setStatsBasis(basis))}
+          actuals={w.actuals} loading={w.statsLoading} refreshing={w.statsRefreshing} error={w.statsError}
+          onRefresh={() => { void w.refreshActuals(); }} projectionSeason={draft.state.source.season}
+          projectionLabel={draft.state.source.label} samples={w.statsSamples} demo={demo} />
         <details className="mt-1.5 border-t pt-1.5 text-xs" data-testid="details-data">
-          <summary className="cursor-pointer font-medium text-muted-foreground">Data sources & refresh <span className="ml-2 font-normal">ESPN projections / injuries · Yahoo positions</span></summary>
+          <summary className="cursor-pointer font-medium text-muted-foreground">Data sources & refresh <span className="ml-2 font-normal">ESPN {w.statsBasis === 'actuals' ? 'actuals' : 'projections'} / injuries · Yahoo positions</span></summary>
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground [&>span]:[overflow-wrap:anywhere]" data-testid="text-schedule-meta">
             <span>Applied: {planner.start} through {planner.end}</span>
             {schedule ? <span>{schedule.source} / {schedule.season} / {schedule.games.length} games / fetched {when(schedule.fetchedAt)}</span> : <span>No schedule loaded</span>}
@@ -170,7 +176,7 @@ export default function Weekly() {
             </details>
           </Panel>
       )}
-      <details className="rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground" data-testid="details-methodology"><summary className="cursor-pointer font-semibold">How projections work & important limitations</summary><p className="mt-2">Forecasts use per-game season projections across the full window, not live scores. Counting stats multiply per-game projections by expected active games. FG% and FT% divide total projected makes by total attempts, weighted by games. Lower turnovers wins.</p><p className="mt-2">Win chances are simplified independent Poisson-count and binomial-shooting normal approximations for planning. They are not calibrated probabilities or guaranteed wins. Copy recommended starters into Yahoo before the weekly lock; this app does not submit lineups. Older or started weeks can be explored but cannot change locked Yahoo lineups.</p></details>
+      <details className="rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground" data-testid="details-methodology"><summary className="cursor-pointer font-semibold">How projections work & important limitations</summary><p className="mt-2">Forecasts use the selected stats basis: season projections or current regular-season per-game averages, not live scores. Missing actuals use clearly labeled saved projections. Counting stats multiply per-game rates by expected active games. FG% and FT% divide total expected makes by total attempts, weighted by games. Lower turnovers wins. Actual averages use the latest retrieved season totals even when exploring a past matchup; they are not a historical as-of-week snapshot.</p><p className="mt-2">Win chances are simplified independent Poisson-count and binomial-shooting normal approximations for planning. They are not calibrated probabilities or guaranteed wins. Copy recommended starters into Yahoo before the weekly lock; this app does not submit lineups. Older or started weeks can be explored but cannot change locked Yahoo lineups.</p></details>
       <p className="text-[11px] text-muted-foreground">Planning estimates, not guaranteed wins. Apply here, then copy your lineup into Yahoo before the weekly lock.</p>
       {analysis && (
         <>
@@ -192,7 +198,7 @@ export default function Weekly() {
                 );
               })}
             </ul>
-            <p className="mt-2 text-xs text-muted-foreground">Columns: category, you, opponent, edge, model edge (estimated category points; ties count half, so a zero-attempt tie shows 50.0% and is not a literal calibrated win probability). Lower TO wins. Counts multiply per-game projections by expected active games.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Columns: category, you, opponent, edge, model edge (estimated category points; ties count half, so a zero-attempt tie shows 50.0% and is not a literal calibrated win probability). Lower TO wins. Counts multiply selected per-game rates by expected active games.</p>
           </Panel>
         </>
       )}

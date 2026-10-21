@@ -107,6 +107,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/YahooError"
+  /draft-data/actuals:
+    get:
+      operationId: getSeasonActuals
+      tags: [draft-data]
+      summary: Current regular-season actual per-game NBA statistics, not projections
+      responses:
+        "200":
+          description: Validated current-season totals divided by actual games played
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeasonActualsFeed"
+        "503":
+          description: Current-season actual statistics unavailable or incomplete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YahooError"
   /draft-data/injuries:
     get:
       operationId: getDraftInjuries
@@ -409,6 +427,41 @@ components:
             updatedAt: { type: string }
             url: { type: string }
             isDemo: { type: boolean }
+    SeasonActualsPlayer:
+      type: object
+      required: [id, name, gamesPlayed, points, rebounds, assists, steals, blocks, threes, turnovers, fgm, fga, ftm, fta]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        gamesPlayed: { type: integer, minimum: 1, maximum: 100 }
+        points: { type: number, minimum: 0 }
+        rebounds: { type: number, minimum: 0 }
+        assists: { type: number, minimum: 0 }
+        steals: { type: number, minimum: 0 }
+        blocks: { type: number, minimum: 0 }
+        threes: { type: number, minimum: 0 }
+        turnovers: { type: number, minimum: 0 }
+        fgm: { type: number, minimum: 0 }
+        fga: { type: number, minimum: 0 }
+        ftm: { type: number, minimum: 0 }
+        fta: { type: number, minimum: 0 }
+    SeasonActualsFeed:
+      type: object
+      required: [players, season, label, provider, fetchedAt, statsThroughDate, skippedPlayers, totalPlayers]
+      properties:
+        players:
+          type: array
+          items: { $ref: "#/components/schemas/SeasonActualsPlayer" }
+        season: { type: string }
+        label: { type: string }
+        provider: { type: string }
+        fetchedAt: { type: string }
+        statsThroughDate:
+          type: [string, "null"]
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: Null when ESPN does not publish the latest included game date; never substitute fetch time.
+        skippedPlayers: { type: integer, minimum: 0 }
+        totalPlayers: { type: integer, minimum: 0 }
     DraftInjuryReport:
       type: object
       required: [name, status, note, source]

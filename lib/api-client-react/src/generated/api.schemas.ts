@@ -197,6 +197,56 @@ export interface DraftProjectionFeed {
   source: DraftProjectionFeedSource;
 }
 
+export interface SeasonActualsPlayer {
+  id: string;
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  gamesPlayed: number;
+  /** @minimum 0 */
+  points: number;
+  /** @minimum 0 */
+  rebounds: number;
+  /** @minimum 0 */
+  assists: number;
+  /** @minimum 0 */
+  steals: number;
+  /** @minimum 0 */
+  blocks: number;
+  /** @minimum 0 */
+  threes: number;
+  /** @minimum 0 */
+  turnovers: number;
+  /** @minimum 0 */
+  fgm: number;
+  /** @minimum 0 */
+  fga: number;
+  /** @minimum 0 */
+  ftm: number;
+  /** @minimum 0 */
+  fta: number;
+}
+
+export interface SeasonActualsFeed {
+  players: SeasonActualsPlayer[];
+  season: string;
+  label: string;
+  provider: string;
+  fetchedAt: string;
+  /**
+     * Null when ESPN does not publish the latest included game date; never substitute fetch time.
+     * @nullable
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  statsThroughDate: string | null;
+  /** @minimum 0 */
+  skippedPlayers: number;
+  /** @minimum 0 */
+  totalPlayers: number;
+}
+
 export interface DraftInjuryReport {
   name: string;
   status: string;

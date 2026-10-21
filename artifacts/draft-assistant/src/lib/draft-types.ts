@@ -36,8 +36,15 @@ export interface Player {
   yahooEligibilityMissing?: boolean;
   positionsConflict?: boolean;
   projectionUnavailable?: boolean;
+  /** Weekly-only derived metadata; the base projection player is never overwritten. */
+  weeklyStats?: {
+    basis: 'projections' | 'actuals';
+    gamesPlayed?: number;
+    fallbackReason?: string;
+  };
 }
 export interface WeeklyPlannerState {
+  statsBasis?: 'projections' | 'actuals';
   start: string;
   end: string;
   myRosterIds: string[];

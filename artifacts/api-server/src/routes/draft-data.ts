@@ -2,6 +2,7 @@ import { Router, type IRouter } from 'express';
 import { createDraftDataService } from '../lib/draft-data';
 import { createYahooEligibilityService } from '../lib/yahoo-eligibility';
 import { createScheduleService, scheduleDates } from '../lib/nba-schedule';
+import { createSeasonActualsService } from '../lib/season-actuals';
 
 const router: IRouter = Router();
 const service = createDraftDataService();
@@ -16,8 +17,8 @@ router.get('/draft-data/schedule', async (req, res) => {
     res.status(503).json({ code: 'nba_schedule_unavailable', error: 'The complete NBA schedule could not be verified. No partial game totals were substituted. Your saved rosters are unchanged.' });
   }
 });
-const feeds = { ...service, eligibility: createYahooEligibilityService() };
-for (const name of ['projections', 'injuries', 'eligibility'] as const) {
+const feeds = { ...service, eligibility: createYahooEligibilityService(), actuals: createSeasonActualsService() };
+for (const name of ['projections', 'injuries', 'eligibility', 'actuals'] as const) {
   router.get(`/draft-data/${name}`, async (req, res) => {
     res.set('Cache-Control', 'no-store');
     try { res.json(await feeds[name]()); }

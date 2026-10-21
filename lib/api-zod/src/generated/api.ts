@@ -167,6 +167,67 @@ export const GetDraftProjectionsResponse = zod.object({
 
 
 /**
+ * @summary Current regular-season actual per-game NBA statistics, not projections
+ */
+export const getSeasonActualsResponsePlayersItemGamesPlayedMax = 100;
+
+export const getSeasonActualsResponsePlayersItemPointsMin = 0;
+
+export const getSeasonActualsResponsePlayersItemReboundsMin = 0;
+
+export const getSeasonActualsResponsePlayersItemAssistsMin = 0;
+
+export const getSeasonActualsResponsePlayersItemStealsMin = 0;
+
+export const getSeasonActualsResponsePlayersItemBlocksMin = 0;
+
+export const getSeasonActualsResponsePlayersItemThreesMin = 0;
+
+export const getSeasonActualsResponsePlayersItemTurnoversMin = 0;
+
+export const getSeasonActualsResponsePlayersItemFgmMin = 0;
+
+export const getSeasonActualsResponsePlayersItemFgaMin = 0;
+
+export const getSeasonActualsResponsePlayersItemFtmMin = 0;
+
+export const getSeasonActualsResponsePlayersItemFtaMin = 0;
+
+export const getSeasonActualsResponseStatsThroughDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getSeasonActualsResponseSkippedPlayersMin = 0;
+
+export const getSeasonActualsResponseTotalPlayersMin = 0;
+
+
+
+export const GetSeasonActualsResponse = zod.object({
+  "players": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "gamesPlayed": zod.number().int().min(1).max(getSeasonActualsResponsePlayersItemGamesPlayedMax),
+  "points": zod.number().min(getSeasonActualsResponsePlayersItemPointsMin),
+  "rebounds": zod.number().min(getSeasonActualsResponsePlayersItemReboundsMin),
+  "assists": zod.number().min(getSeasonActualsResponsePlayersItemAssistsMin),
+  "steals": zod.number().min(getSeasonActualsResponsePlayersItemStealsMin),
+  "blocks": zod.number().min(getSeasonActualsResponsePlayersItemBlocksMin),
+  "threes": zod.number().min(getSeasonActualsResponsePlayersItemThreesMin),
+  "turnovers": zod.number().min(getSeasonActualsResponsePlayersItemTurnoversMin),
+  "fgm": zod.number().min(getSeasonActualsResponsePlayersItemFgmMin),
+  "fga": zod.number().min(getSeasonActualsResponsePlayersItemFgaMin),
+  "ftm": zod.number().min(getSeasonActualsResponsePlayersItemFtmMin),
+  "fta": zod.number().min(getSeasonActualsResponsePlayersItemFtaMin)
+})),
+  "season": zod.string(),
+  "label": zod.string(),
+  "provider": zod.string(),
+  "fetchedAt": zod.string(),
+  "statsThroughDate": zod.string().regex(getSeasonActualsResponseStatsThroughDateRegExp).nullable().describe('Null when ESPN does not publish the latest included game date; never substitute fetch time.'),
+  "skippedPlayers": zod.number().int().min(getSeasonActualsResponseSkippedPlayersMin),
+  "totalPlayers": zod.number().int().min(getSeasonActualsResponseTotalPlayersMin)
+})
+
+
+/**
  * @summary Current public ESPN NBA injury reports; absence is not health confirmation
  */
 export const GetDraftInjuriesResponse = zod.object({

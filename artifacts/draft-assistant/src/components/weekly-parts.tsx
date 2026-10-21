@@ -75,6 +75,13 @@ export function CompactRow({ row, side, handle, onRemove, onGames, onPositions, 
       <div className="flex min-h-9 items-center gap-1.5">
         {handle}
         <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={p.name}>{p.name}</span>
+        {p.weeklyStats && (p.weeklyStats.basis === 'actuals' || p.weeklyStats.fallbackReason) && (
+          <span className="shrink-0 rounded border px-1 text-[10px] text-muted-foreground"
+            data-testid={`badge-stats-${side}-${p.id}`}
+            title={p.weeklyStats.basis === 'actuals' ? `Season-to-date averages from ${p.weeklyStats.gamesPlayed} games played${(p.weeklyStats.gamesPlayed ?? 0) < 10 ? '; small sample' : ''}` : p.weeklyStats.fallbackReason}>
+            {p.weeklyStats.basis === 'actuals' ? `${p.weeklyStats.gamesPlayed} GP` : 'Proj fallback'}
+          </span>
+        )}
         <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">{p.team} {p.positions.join('/')}</span>
         {p.injuryStatus && <span className="shrink-0 rounded bg-primary/15 px-1 py-0.5 text-[10px] font-semibold uppercase" title={`${p.injuryStatus}${p.injuryNote ? `: ${p.injuryNote}` : ''}`}>{p.injuryStatus === 'Day-to-day' ? 'DTD' : p.injuryStatus}</span>}
         {row.warning && !row.reserve && <span className="rounded border border-[hsl(40_80%_40%)]/50 bg-[hsl(44_90%_60%)]/25 px-1 text-[10px] font-bold" title={row.warning} aria-label="Has warning, open details">!</span>}
@@ -91,6 +98,11 @@ export function CompactRow({ row, side, handle, onRemove, onGames, onPositions, 
       {open && (
         <div className="mb-1.5 space-y-1.5 rounded-md bg-muted/60 p-2 text-xs" data-testid={`details-${side}-${p.id}`}>
           <p className="font-semibold">{p.name} <span className="font-normal text-muted-foreground">· {p.team}</span></p>
+          {p.weeklyStats && <p className="text-muted-foreground">
+            {p.weeklyStats.basis === 'actuals'
+              ? `Stats basis: current-season averages, ${p.weeklyStats.gamesPlayed} games played.${(p.weeklyStats.gamesPlayed ?? 0) < 10 ? ' Small sample: under 10 games.' : ''}`
+              : `Stats basis: ${p.weeklyStats.fallbackReason ? `projection fallback. ${p.weeklyStats.fallbackReason}` : 'season projections.'}`}
+          </p>}
           <div className="font-mono text-[11px] text-muted-foreground">
             {pending ? 'Schedule pending' : row.dates.length ? row.dates.join('  ') : 'No scheduled games'} | {fmt(p.points)} pts {fmt(p.rebounds)} reb {fmt(p.assists)} ast per game
           </div>

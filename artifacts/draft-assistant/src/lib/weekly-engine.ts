@@ -17,7 +17,7 @@ export function validMatchupDates(start: string, end: string) {
     new Date(b).toISOString().slice(0, 10) === end && b >= a && b - a < 14 * DAY;
 }
 export function createMatchup(state: DraftState): WeeklyPlannerState {
-  return { ...matchupDates(), myRosterIds: state.picks.filter(p => p.team === state.settings.myPosition).map(p => p.playerId),
+  return { ...matchupDates(), statsBasis: 'projections', myRosterIds: state.picks.filter(p => p.team === state.settings.myPosition).map(p => p.playerId),
     myReserveIds: [], opponentRosterIds: [], opponentStarterIds: [], expectedGames: {} };
 }
 const ALIASES: Record<string, string> = { GS: 'GSW', NY: 'NYK', NO: 'NOP', SA: 'SAS', WSH: 'WAS', UTAH: 'UTA', PHO: 'PHX' };
@@ -46,7 +46,7 @@ export function weeklyPlayers(players: Player[], schedule: NbaSchedule, override
     const override = Object.hasOwn(overrides, player.id);
     const expectedGames = override ? Math.min(overrides[player.id]!, unknown ? 14 : games.length) : out ? 0 : games.length;
     return { player, dates: games.map(g => g.date), scheduledGames: games.length, expectedGames, override,
-      warning: player.projectionUnavailable ? 'Missing from the latest projection feed; these are saved projections.' :
+      warning: player.projectionUnavailable && player.weeklyStats?.basis !== 'actuals' ? 'Missing from the latest projection feed; these are saved projections.' :
         unknown ? 'NBA team not recognized. Set expected games manually; scheduled games cannot be verified.' :
         out ? (override ? 'Out/injured status: using your expected-game override, not a medical clearance.' : 'Out/injured: conservatively assumes 0 games. Edit expected games if a return is likely.') :
         /questionable|doubtful|day.to.day|dtd/i.test(player.injuryStatus ?? '') ? 'Availability uncertain: full schedule assumed unless you override expected games.' : undefined };

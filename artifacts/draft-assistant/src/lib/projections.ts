@@ -141,6 +141,7 @@ const lineupSchema = z.record(z.string().regex(/^(PG|SG|G|SF|PF|F|C|UTIL|BN|IL)-
   { message: 'A player can occupy only one weekly lineup slot.' },
 );
 export const matchupSchema = z.object({
+  statsBasis: z.enum(['projections', 'actuals']).default('projections'),
   start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   myRosterIds: z.array(z.string()).max(18),

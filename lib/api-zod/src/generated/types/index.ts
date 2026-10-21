@@ -26,6 +26,8 @@ export * from './lineupScreenshotRowSlot';
 export * from './nbaGame';
 export * from './nbaGameStatus';
 export * from './nbaSchedule';
+export * from './seasonActualsFeed';
+export * from './seasonActualsPlayer';
 export * from './yahooAuthorization';
 export * from './yahooConsent';
 export * from './yahooDisconnected';

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './weekly-stats.test';
 import { test } from 'node:test';
 import type { NbaSchedule } from '@workspace/api-client-react';
 import type { Player, RosterSlot } from '../src/lib/draft-types';

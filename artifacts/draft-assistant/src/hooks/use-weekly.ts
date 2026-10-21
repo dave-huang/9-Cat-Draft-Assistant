@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { getGetNbaScheduleQueryKey, useGetNbaSchedule } from '@workspace/api-client-react';
+import { getGetNbaScheduleQueryKey, useGetNbaSchedule, useGetSeasonActuals, getGetSeasonActualsQueryKey } from '@workspace/api-client-react';
 import { useDraft } from './use-draft';
 import { useDraftData } from './use-draft-data';
 import { createMatchup, optimizeWeekly, validMatchupDates, weeklyPlayers } from '@/lib/weekly-engine';
@@ -7,6 +7,7 @@ import type { Player, WeeklyPlannerState } from '@/lib/draft-types';
 import type { WeeklyPlayer } from '@/lib/weekly-engine';
 import { currentWeeklyAnalysis, eligibleWeeklySlot, lineupErrors, moveWeeklyPlayer, optimalWeeklyLineup, prepareWeeklyPlanner, syncWeeklyLineups, visibleWeeklySlots, weeklySlots, type WeeklyLineup, type WeeklySide } from '@/lib/weekly-lineup';
 import { importOpponentLineup, type LineupImportRow } from '@/lib/lineup-import';
+import { playersForWeeklyBasis, type StatsBasis } from '@/lib/weekly-stats';
 
 const pendingRows = (players: Player[]): WeeklyPlayer[] => players.map(player => ({
   player, scheduledGames: 0, expectedGames: 0, dates: [], override: false, schedulePending: true,
@@ -18,6 +19,19 @@ export function useWeeklyPlanner() {
   const slots = useMemo(() => weeklySlots(draft.state.settings), [draft.state.settings]);
   const planner = useMemo(() => prepareWeeklyPlanner(draft.state.matchup ?? createMatchup(draft.state), draft.state.players, slots),
     [draft.state.matchup, draft.state.players, slots]);
+  const statsBasis = planner.statsBasis ?? 'projections';
+  const actualsRequest = useGetSeasonActuals({ query: {
+    queryKey: getGetSeasonActualsQueryKey(), enabled: statsBasis === 'actuals' && !draft.state.source.isDemo,
+    staleTime: 5 * 60_000, refetchInterval: statsBasis === 'actuals' ? 15 * 60_000 : false,
+    refetchOnWindowFocus: true, retry: 1,
+  } });
+  const actuals = actualsRequest.data?.season === draft.state.source.season ? actualsRequest.data : undefined;
+  const statsError = statsBasis !== 'actuals' ? null : actualsRequest.error
+    ? 'Current-season actual statistics could not be refreshed. Retry or switch to season projections; lineups are unchanged.'
+    : actualsRequest.data && !actuals ? 'The actual-stat feed is for a different season than your saved projection pool. Load current-season projections first.' : null;
+  const statsReady = statsBasis === 'projections' || (!!actuals && !statsError);
+  const weeklyPool = useMemo(() => playersForWeeklyBasis(draft.state.players, statsBasis, draft.state.source.season, actuals),
+    [draft.state.players, statsBasis, draft.state.source.season, actuals]);
   const myLineup = planner.myLineup!, opponentLineup = planner.opponentLineup!;
   const activeSlots = draft.state.settings.rosterSlots.filter(s => s !== 'BN');
   const validDates = validMatchupDates(planner.start, planner.end);
@@ -30,22 +44,22 @@ export function useWeeklyPlanner() {
   useEffect(() => {
     if ((!draft.state.matchup?.myLineup || !draft.state.matchup?.opponentLineup || !draft.state.matchup?.ilEligibleIds) && !draft.saveError) draft.updateMatchup(planner);
   }, [draft.state.matchup, draft.saveError, planner]);
-  const mine = useMemo(() => (schedule ? weeklyPlayers(draft.state.players.filter(p => planner.myRosterIds.includes(p.id)), schedule, planner.expectedGames) : pendingRows(draft.state.players.filter(p => planner.myRosterIds.includes(p.id)))).map(row =>
+  const mine = useMemo(() => (schedule ? weeklyPlayers(weeklyPool.filter(p => planner.myRosterIds.includes(p.id)), schedule, planner.expectedGames) : pendingRows(weeklyPool.filter(p => planner.myRosterIds.includes(p.id)))).map(row =>
     (planner.myReserveIds ?? []).includes(row.player.id) ? { ...row, reserve: true, expectedGames: 0, warning: 'IL reserve: excluded from starters and totals. Activate only if eligible in Yahoo and a regular roster spot is free.' } : row),
-    [schedule, draft.state.players, planner.myRosterIds, planner.myReserveIds, planner.expectedGames]);
-  const opponent = useMemo(() => (schedule ? weeklyPlayers(draft.state.players.filter(p => planner.opponentRosterIds.includes(p.id)), schedule, planner.expectedGames) : pendingRows(draft.state.players.filter(p => planner.opponentRosterIds.includes(p.id)))).map(row =>
+     [schedule, weeklyPool, planner.myRosterIds, planner.myReserveIds, planner.expectedGames]);
+  const opponent = useMemo(() => (schedule ? weeklyPlayers(weeklyPool.filter(p => planner.opponentRosterIds.includes(p.id)), schedule, planner.expectedGames) : pendingRows(weeklyPool.filter(p => planner.opponentRosterIds.includes(p.id)))).map(row =>
     (planner.opponentReserveIds ?? []).includes(row.player.id) ? { ...row, reserve: true, expectedGames: 0, warning: 'IL reserve: excluded from starters and totals.' } : row),
-    [schedule, draft.state.players, planner.opponentRosterIds, planner.opponentReserveIds, planner.expectedGames]);
+     [schedule, weeklyPool, planner.opponentRosterIds, planner.opponentReserveIds, planner.expectedGames]);
   const errors = useMemo(() => ({
     mine: lineupErrors(myLineup, mine.map(r => r.player), slots, planner.ilEligibleIds ?? []),
     opponent: lineupErrors(opponentLineup, opponent.map(r => r.player), slots, planner.ilEligibleIds ?? []),
   }), [myLineup, opponentLineup, mine, opponent, slots, planner.ilEligibleIds]);
   const result = useMemo(() => {
-    if (!schedule || request.error || errors.mine.length || errors.opponent.length || !mine.length || !schedule.games.some(g => !['postponed', 'canceled'].includes(g.status)) || draft.state.source.isDemo) return {};
+    if (!statsReady || !schedule || request.error || errors.mine.length || errors.opponent.length || !mine.length || !schedule.games.some(g => !['postponed', 'canceled'].includes(g.status)) || draft.state.source.isDemo) return {};
     const currentAnalysis = currentWeeklyAnalysis(mine, opponent, myLineup, opponentLineup, slots);
     try { return { currentAnalysis, analysis: optimizeWeekly(mine, opponent.filter(p => planner.opponentStarterIds.includes(p.player.id)), activeSlots) }; }
     catch (e) { return { currentAnalysis, analysisError: e instanceof Error ? e.message : String(e) }; }
-  }, [schedule, request.error, errors, mine, opponent, myLineup, opponentLineup, slots, planner.opponentStarterIds, draft.state.source.isDemo, draft.state.settings.rosterSlots]);
+  }, [statsReady, schedule, request.error, errors, mine, opponent, myLineup, opponentLineup, slots, planner.opponentStarterIds, draft.state.source.isDemo, draft.state.settings.rosterSlots]);
   const update = (next: WeeklyPlannerState) => {
     const synced = syncWeeklyLineups(next, next.myLineup ?? {}, next.opponentLineup ?? {}, slots);
     for (const side of ['mine', 'opponent'] as const) {
@@ -65,6 +79,10 @@ export function useWeeklyPlanner() {
   const rosterFor = (side: WeeklySide) => (side === 'mine' ? mine : opponent).map(r => r.player);
   const lineupFor = (side: WeeklySide) => side === 'mine' ? myLineup : opponentLineup;
   const actions = {
+    setStatsBasis(basis: StatsBasis) {
+      if (!['projections', 'actuals'].includes(basis)) throw new Error('Choose a valid weekly stats basis.');
+      update({ ...planner, statsBasis: basis });
+    },
     importOpponent(rows: LineupImportRow[], ilConfirmed: boolean) {
       if (draft.state.source.isDemo) throw new Error('Load real season projections before importing a lineup.');
       update(importOpponentLineup(planner, rows, draft.state.players, slots, ilConfirmed));
@@ -140,6 +158,9 @@ export function useWeeklyPlanner() {
     },
   };
   return { draft, planner, mine, opponent, schedule, ...result, ...actions, activeSlots, slots, myLineup, opponentLineup, lineupErrors: errors, dataStatus,
+    statsBasis, actuals, statsError, statsReady, statsLoading: statsBasis === 'actuals' && actualsRequest.isLoading,
+    statsRefreshing: actualsRequest.isFetching, refreshActuals: () => actualsRequest.refetch(),
+    statsSamples: [...mine, ...opponent].map(r => ({ id: r.player.id, name: r.player.name, ...r.player.weeklyStats! })),
     scheduleLoading: request.isLoading, scheduleRefreshing: request.isFetching,
     scheduleError: request.error instanceof Error ? request.error.message : request.error ? 'Schedule unavailable.' : null,
     refreshSchedule: () => request.refetch(), validDates };

@@ -12,7 +12,8 @@
     "test:draft-data": "esbuild tests/draft-data.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-feed-tests.cjs && node --test /tmp/nba-feed-tests.cjs",
     "test:eligibility": "esbuild tests/yahoo-eligibility.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-eligibility-tests.cjs && node --test /tmp/nba-eligibility-tests.cjs",
     "test:schedule": "esbuild tests/nba-schedule.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-schedule-tests.cjs && node --test /tmp/nba-schedule-tests.cjs",
-    "test:screenshot": "esbuild tests/lineup-screenshot.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-screenshot-tests.cjs && node --test /tmp/nba-screenshot-tests.cjs"
+    "test:screenshot": "esbuild tests/lineup-screenshot.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-screenshot-tests.cjs && node --test /tmp/nba-screenshot-tests.cjs",
+    "test:actuals": "esbuild tests/season-actuals.test.ts --bundle --platform=node --format=cjs --outfile=/tmp/nba-actuals-tests.cjs && node --test /tmp/nba-actuals-tests.cjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
