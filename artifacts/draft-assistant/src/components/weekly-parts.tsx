@@ -36,63 +36,6 @@ export function PlayerSearch({ side, players, excluded, onAdd, onAddIl }: { side
   );
 }
 
-export function RosterRow({ row, side, active, starterMode, onRemove, onGames, onActive, onReserve, onPositions, onError, extra }: {
-  row: WeeklyPlayer; side: string; active?: boolean; starterMode?: boolean;
-  onRemove: () => void; onGames: (v?: number) => void; onActive?: (a: boolean) => void; onReserve?: (r: boolean) => void; onPositions?: () => void; onError: (m: string) => void; extra?: ReactNode;
-}) {
-  const p = row.player;
-  const [draft, setDraft] = useState<string | null>(null);
-  const commit = () => {
-    if (draft === null) return;
-    const v = draft.trim();
-    try { if (v !== '') onGames(Number(v)); onError(''); } catch (e) { onError(errMsg(e)); }
-    setDraft(null);
-  };
-  const act = (fn: () => void) => { try { fn(); onError(''); } catch (e) { onError(errMsg(e)); } };
-  return (
-    <li className="py-2.5" data-testid={`row-${side}-${p.id}`}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {onReserve && (
-          <label className="flex items-center gap-1.5 text-xs">
-            <select className={`${field} !w-auto`} aria-label={`Roster spot for ${p.name}`} data-testid={`select-spot-${p.id}`} value={row.reserve ? 'il' : 'reg'} onChange={e => act(() => onReserve(e.target.value === 'il'))}>
-              <option value="reg">Regular</option>
-              <option value="il">IL</option>
-            </select>
-          </label>
-        )}
-        {starterMode && (
-          <label className="flex items-center gap-1.5 text-xs">
-            <input type="checkbox" checked={!!active} data-testid={`checkbox-active-${p.id}`} onChange={e => act(() => onActive?.(e.target.checked))} />
-            {active ? 'Active' : 'Bench'}
-          </label>
-        )}
-        {extra}
-        <span className="min-w-0 text-sm font-semibold">{p.name}</span>
-        <span className="font-mono text-[11px] text-muted-foreground">
-          {p.team} <button className="underline decoration-dotted underline-offset-4" title="View or correct Yahoo positions" data-testid={`button-weekly-positions-${p.id}`} onClick={() => onPositions?.()}>{p.positions.join('/')} ({positionSourceLabel(p)})</button>
-        </span>
-        {p.injuryStatus && <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase">{p.injuryStatus}</span>}
-        <span className="ml-auto flex items-center gap-2">
-          <label className="flex items-center gap-1 text-xs text-muted-foreground">
-            Games
-            <input type="number" min={0} max={14} step="any" className={`${field} !w-16 font-mono`} data-testid={`input-games-${p.id}`} disabled={row.reserve || row.schedulePending}
-              placeholder={row.schedulePending ? '—' : undefined} value={row.schedulePending ? '' : draft ?? String(row.expectedGames)} onChange={e => setDraft(e.target.value)} onBlur={commit}
-              onKeyDown={e => { if (e.key === 'Enter') commit(); }} aria-label={`Expected games for ${p.name}`} />
-            <span className="font-mono">/ {row.schedulePending ? '—' : row.scheduledGames}</span>
-          </label>
-          {row.override && !row.reserve && <button type="button" className={btn.ghost} data-testid={`button-reset-games-${p.id}`} onClick={() => act(() => onGames(undefined))}>Reset</button>}
-          <button type="button" className={btn.ghost} data-testid={`button-remove-${side}-${p.id}`} onClick={() => act(onRemove)}>Remove</button>
-        </span>
-      </div>
-      <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-        {row.schedulePending ? 'Schedule pending' : row.dates.length ? row.dates.join('  ') : 'No scheduled games'} | {fmt(p.points)} pts {fmt(p.rebounds)} reb {fmt(p.assists)} ast per game
-      </div>
-      {row.warning && <div className="mt-1"><Notice tone="warn">{row.warning}</Notice></div>}
-      {p.injuryNote && <div className="mt-1 text-xs text-muted-foreground">{p.injuryNote}</div>}
-    </li>
-  );
-}
-
 type Opt = { slot: { id: string; label: string }; allowed: boolean; reason?: string };
 export function MoveSelect({ id, options, onMove }: { id: string; options: Opt[]; onMove: (slotId: string) => void }) {
   return (
@@ -109,5 +52,59 @@ export function IlConfirm({ id, checked, onChange }: { id: string; checked: bool
       <input type="checkbox" checked={checked} data-testid={`checkbox-il-eligible-${id}`} onChange={e => onChange(e.target.checked)} />
       Yahoo IL eligible
     </label>
+  );
+}
+
+export function CompactRow({ row, side, handle, onRemove, onGames, onPositions, onError, extra }: {
+  row: WeeklyPlayer; side: string; handle: ReactNode; onRemove: () => void; onGames: (v?: number) => void; onPositions: () => void; onError: (m: string) => void; extra?: ReactNode;
+}) {
+  const p = row.player;
+  const [draft, setDraft] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const act = (fn: () => void) => { try { fn(); onError(''); } catch (e) { onError(errMsg(e)); } };
+  const commit = () => {
+    if (draft === null) return;
+    const v = draft.trim();
+    try { if (v !== '') onGames(Number(v)); onError(''); } catch (e) { onError(errMsg(e)); }
+    setDraft(null);
+  };
+  const locked = row.reserve || row.schedulePending;
+  const pending = row.schedulePending;
+  return (
+    <div className="min-w-0 flex-1" data-testid={`row-${side}-${p.id}`}>
+      <div className="flex min-h-9 items-center gap-1.5">
+        {handle}
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={p.name}>{p.name}</span>
+        <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">{p.team} {p.positions.join('/')}</span>
+        {p.injuryStatus && <span className="shrink-0 rounded bg-primary/15 px-1 py-0.5 text-[10px] font-semibold uppercase" title={`${p.injuryStatus}${p.injuryNote ? `: ${p.injuryNote}` : ''}`}>{p.injuryStatus === 'Day-to-day' ? 'DTD' : p.injuryStatus}</span>}
+        {row.warning && !row.reserve && <span className="rounded border border-[hsl(40_80%_40%)]/50 bg-[hsl(44_90%_60%)]/25 px-1 text-[10px] font-bold" title={row.warning} aria-label="Has warning, open details">!</span>}
+        <label className="flex items-center gap-1 text-[11px] text-muted-foreground" title={row.reserve ? 'IL players do not play' : 'Expected games / scheduled games'}>
+          <span className="sr-only sm:not-sr-only">Gm</span>
+          <input type="number" min={0} max={14} step="any" className={`${field} !w-12 !px-1 !py-0.5 font-mono !text-xs ${row.override ? '!border-primary' : ''}`} data-testid={`input-games-${p.id}`} disabled={locked}
+            placeholder={pending ? '—' : undefined} value={pending ? '' : draft ?? String(row.expectedGames)} onChange={e => setDraft(e.target.value)} onBlur={commit}
+            onKeyDown={e => { if (e.key === 'Enter') commit(); }} aria-label={`Expected games for ${p.name}`} />
+          <span className="font-mono">/{pending ? '—' : row.scheduledGames}</span>
+        </label>
+        {row.override && !row.reserve && <button type="button" className="text-[11px] font-semibold underline" data-testid={`button-reset-games-${p.id}`} onClick={() => act(() => onGames(undefined))}>Reset</button>}
+        <button type="button" className="min-h-7 shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details for ${p.name}`} data-testid={`button-details-${side}-${p.id}`} onClick={() => setOpen(o => !o)}>{open ? 'Hide' : 'Details'}</button>
+      </div>
+      {open && (
+        <div className="mb-1.5 space-y-1.5 rounded-md bg-muted/60 p-2 text-xs" data-testid={`details-${side}-${p.id}`}>
+          <p className="font-semibold">{p.name} <span className="font-normal text-muted-foreground">· {p.team}</span></p>
+          <div className="font-mono text-[11px] text-muted-foreground">
+            {pending ? 'Schedule pending' : row.dates.length ? row.dates.join('  ') : 'No scheduled games'} | {fmt(p.points)} pts {fmt(p.rebounds)} reb {fmt(p.assists)} ast per game
+          </div>
+          <div>
+            Positions: <button type="button" className="underline decoration-dotted underline-offset-4" title="View or correct Yahoo positions" data-testid={`button-weekly-positions-${p.id}`} onClick={onPositions}>{p.positions.join('/')} ({positionSourceLabel(p)})</button>
+          </div>
+          {row.warning && <Notice tone="warn">{row.warning}</Notice>}
+          {p.injuryNote && <div className="text-muted-foreground">{p.injuryNote}</div>}
+          <div className="flex flex-wrap items-center gap-3">
+            {extra}
+            <button type="button" className={btn.ghost} data-testid={`button-remove-${side}-${p.id}`} onClick={() => act(onRemove)}>Remove</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

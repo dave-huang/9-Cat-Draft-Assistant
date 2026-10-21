@@ -6,6 +6,7 @@ import { compareWeekly, createMatchup, matchupDates, optimizeWeekly, totalWeekly
 import { assignRoster } from '../src/lib/draft-engine';
 import { createInitialState, parseSession } from '../src/lib/projections';
 import { currentWeeklyAnalysis, eligibleWeeklySlot, lineupErrors, moveWeeklyPlayer, optimalWeeklyLineup, prepareWeeklyPlanner, syncWeeklyLineups, visibleWeeklySlots, weeklySlots } from '../src/lib/weekly-lineup';
+import { weeklyMoveTarget } from '../src/lib/weekly-interaction';
 
 const player = (id: string, overrides: Partial<Player> = {}): Player => ({
   id, name: `Player ${id}`, team: 'BOS', positions: ['PG', 'SG', 'SF', 'PF', 'C'], games: 60,
@@ -141,6 +142,42 @@ test('moves and occupied swaps enforce eligibility in both directions without di
   assert.equal(benched['BN-2'], pg.id); assert.equal(benched['PG-1'], undefined);
   assert.equal(lineupErrors(benched, roster, slots, []).length, 0);
   assert.throws(() => moveWeeklyPlayer(lineup, roster, slots, [], 'missing', 'BN-1'), /roster player/);
+});
+
+test('drag and click destination previews enforce side, position, mutual swap and IL eligibility without mutating lineups', () => {
+  const slots = weeklySlots(createInitialState().settings);
+  const pg = player('pg', { positions: ['PG', 'SG'] }), sg = player('sg', { positions: ['PG', 'SG'] });
+  const c = player('c', { positions: ['C'], injuryStatus: 'Out' });
+  const roster = [pg, sg, c], lineup = { 'PG-1': pg.id, 'SG-1': sg.id, 'UTIL-1': c.id };
+  const source = { side: 'mine' as const, id: pg.id };
+  const target = (id: string) => weeklyMoveTarget(source, 'mine', id, lineup, roster, slots, []);
+  assert.equal(weeklyMoveTarget(null, 'mine', 'BN-1', lineup, roster, slots, []).state, 'idle');
+  assert.equal(target('PG-1').state, 'source');
+  assert.equal(target('SG-1').state, 'allowed');
+  assert.equal(target('BN-1').state, 'allowed');
+  assert.equal(target('C-1').state, 'blocked');
+  assert.match(target('UTIL-1').reason!, /Cannot swap/);
+  assert.match(target('IL-1').reason!, /Yahoo IL eligibility/);
+  const crossTeam = weeklyMoveTarget(source, 'opponent', 'BN-1', lineup, roster, slots, []);
+  assert.equal(crossTeam.state, 'blocked');
+  assert.match(crossTeam.reason!, /own team/);
+  assert.equal(weeklyMoveTarget({ side: 'mine', id: c.id }, 'mine', 'IL-1', lineup, roster, slots, [c.id]).state, 'allowed');
+  assert.equal(weeklyMoveTarget({ side: 'mine', id: 'gone' }, 'mine', 'BN-1', lineup, roster, slots, []).state, 'blocked');
+  assert.deepEqual(lineup, { 'PG-1': pg.id, 'SG-1': sg.id, 'UTIL-1': c.id });
+});
+
+test('drag previews cannot activate a 13th regular player, but support every flexible bench destination for either team', () => {
+  const slots = weeklySlots(createInitialState().settings);
+  const roster = Array.from({ length: 12 }, (_, i) => player(`regular-${i}`));
+  const il = player('il');
+  const all = [...roster, il], confirmed = [il.id];
+  const lineup = { ...Object.fromEntries(roster.map((p, i) => [`BN-${i + 1}`, p.id])), 'IL-1': il.id };
+  for (const side of ['mine', 'opponent'] as const) {
+    const activating = weeklyMoveTarget({ side, id: il.id }, side, 'PG-1', lineup, all, slots, confirmed);
+    assert.equal(activating.state, 'blocked');
+    assert.match(activating.reason!, /non-IL roster is full/);
+    assert.equal(weeklyMoveTarget({ side, id: roster[0]!.id }, side, 'BN-12', lineup, all, slots, confirmed).state, 'allowed');
+  }
 });
 
 test('Out is not proof of Yahoo IL eligibility; IL swaps require confirmation for the displaced player too', () => {

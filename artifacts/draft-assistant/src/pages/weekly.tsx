@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useWeeklyPlanner } from '@/hooks/use-weekly';
 import { CAT_LABEL, ConfirmButton, Notice, Panel, btn, errMsg, field, fmt } from '@/components/bits';
-import { IlConfirm, MoveSelect, PlayerSearch, RosterRow, pct } from '@/components/weekly-parts';
+import { PlayerSearch, pct } from '@/components/weekly-parts';
+import { LineupBoard } from '@/components/weekly-lineup-board';
+import { useLineupInteraction } from '@/hooks/use-lineup-interaction';
 import type { CategoryKey, Player, Position } from '@/lib/draft-types';
-import { visibleWeeklySlots } from '@/lib/weekly-lineup';
 
 const when = (s?: string) => (s ? new Date(s).toLocaleString() : 'unknown');
 const val = (k: CategoryKey, n: number) => (k === 'fg' || k === 'ft' ? pct(n) : fmt(n));
@@ -22,45 +23,8 @@ export default function Weekly() {
   const oppIncomplete = oppFilled < activeSlots.length;
   const lineupBad = w.lineupErrors.mine.length + w.lineupErrors.opponent.length > 0;
   const ilSet = new Set(planner.ilEligibleIds ?? []);
-  const board = (side: 'mine' | 'opponent') => {
-    const rows = side === 'mine' ? w.mine : w.opponent;
-    const lineup = side === 'mine' ? w.myLineup : w.opponentLineup;
-    const byId = new Map(rows.map(r => [r.player.id, r]));
-    const assigned = new Set(w.slots.flatMap(sl => lineup[sl.id] ? [lineup[sl.id]] : []));
-    const unassigned = rows.filter(r => !assigned.has(r.player.id));
-    const render = (r: typeof rows[number]) => (
-      <RosterRow key={r.player.id} row={r} side={side} onError={setError} onPositions={() => editPositions(r.player)}
-        extra={<>
-          <MoveSelect id={r.player.id} options={w.moveOptions(side, r.player.id)} onMove={t => run(() => w.movePlayer(side, r.player.id, t))} />
-          <IlConfirm id={r.player.id} checked={ilSet.has(r.player.id)} onChange={v => run(() => w.setIlEligible(r.player.id, v))} />
-        </>}
-        onRemove={() => w.removePlayer(side, r.player.id)} onGames={v => w.setExpectedGames(r.player.id, v)} />
-    );
-    return (
-      <>
-        {w.lineupErrors[side].map((m, i) => <div key={i} className="mt-2"><Notice tone="error" testId={`text-lineup-error-${side}-${i}`}>{m}</Notice></div>)}
-        <ul className="mt-2 divide-y">
-          {visibleWeeklySlots(lineup, w.slots).map(sl => {
-            const pid = lineup[sl.id], r = pid ? byId.get(pid) : undefined;
-            return (
-              <li key={sl.id} className="flex gap-2 py-1" data-testid={`slot-${side}-${sl.id}`}>
-                <span className={`mt-3 w-12 shrink-0 rounded py-0.5 text-center font-mono text-xs font-semibold ${sl.kind === 'active' ? 'bg-secondary' : sl.kind === 'il' ? 'bg-primary/15' : 'bg-muted text-muted-foreground'}`}>{sl.label}</span>
-                <div className="min-w-0 flex-1">
-                  {r ? <ul>{render(r)}</ul> : <p className="py-3 text-sm text-muted-foreground" data-testid={`empty-slot-${side}-${sl.id}`}>Empty</p>}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-        {unassigned.length > 0 && (
-          <div className="mt-3" data-testid={`list-unassigned-${side}`}>
-            <p className="text-xs font-semibold">Unassigned ({unassigned.length}): move to an eligible slot or remove.</p>
-            <ul className="divide-y">{unassigned.map(render)}</ul>
-          </div>
-        )}
-      </>
-    );
-  };
+  const ix = useLineupInteraction(w, setError);
+  const board = (side: 'mine' | 'opponent') => <LineupBoard side={side} w={w} ix={ix} ilSet={ilSet} run={run} onError={setError} editPositions={editPositions} />;
   const sv = start ?? planner.start, ev = end ?? planner.end;
   const demo = draft.state.source.isDemo;
   const unverified = [...w.mine, ...w.opponent].filter(({ player: p }) => !p.positionsVerified && p.positionsSource !== 'Manual' && (p.positionsSource !== 'Yahoo' || p.yahooEligibilityMissing || p.positionsConflict));
@@ -86,12 +50,16 @@ export default function Weekly() {
       draft.updatePlayerPositions(player.id, positions as Position[]);
     });
   };
+  const applyOptimal = () => run(() => {
+    w.applyOptimalLineup();
+    ix.complete('Optimal lineup applied. Projections updated.');
+  });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div>
         <h1 className="text-xl font-bold tracking-tight">Weekly matchup</h1>
-        <p className="text-sm text-muted-foreground">Weekly-locked lineup: each of the nine categories is its own win. Forecast uses per-game season projections across the full window, not live scores.</p>
+        <p className="text-xs text-muted-foreground">Weekly lock · Nine equally weighted categories · Only starters score · Changes save automatically</p>
       </div>
       {error && <Notice tone="error" testId="text-weekly-error">{error}</Notice>}
       {draft.saveError && <Notice tone="error">{draft.saveError}</Notice>}
@@ -99,60 +67,82 @@ export default function Weekly() {
       {ds.eligibilityError && <Notice tone="error">{ds.eligibilityError}</Notice>}
       {w.scheduleError && <Notice tone="error">{w.scheduleError}</Notice>}
       {w.analysisError && <Notice tone="error">{w.analysisError}</Notice>}
-      {unverified.length > 0 && <Notice tone="warn">Check Yahoo positions for {unverified.map(r => r.player.name).join(', ')} before trusting slot fit. Click a player’s positions below to correct them from your league.</Notice>}
+      {unverified.length > 0 && <Notice tone="warn"><details><summary className="cursor-pointer">Check Yahoo positions for {unverified.length} player{unverified.length === 1 ? '' : 's'}. Open player Details → Positions to correct.</summary><p className="mt-1 text-xs">{unverified.map(r => r.player.name).join(', ')}</p></details></Notice>}
       {stale && <Notice tone="warn">Some players are missing from the latest projection feed; saved projections are used.</Notice>}
-      <Notice tone="info">Win chances are simplified independent Poisson-count and binomial-shooting normal approximations for planning. They are not calibrated probabilities or guaranteed wins. Copy recommended starters into Yahoo before the weekly lock; this app does not submit lineups. Older or started weeks can be explored but cannot change locked Yahoo lineups.</Notice>
 
-      <Panel title="Matchup window">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-xs">Start<input type="date" className={field} data-testid="input-start" value={sv} onChange={e => setStart(e.target.value)} /></label>
-          <label className="text-xs">End<input type="date" className={field} data-testid="input-end" value={ev} onChange={e => setEnd(e.target.value)} /></label>
-          <button className={btn.primary} data-testid="button-apply-dates" onClick={() => run(() => { w.setDates(sv, ev); setStart(null); setEnd(null); })}>Apply dates</button>
-          <span className="text-xs text-muted-foreground">Changing dates clears games overrides; rosters stay.</span>
+      <section className="rounded-lg border bg-card px-3 py-2" aria-label="Matchup dates and data">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Matchup</span>
+          <label className="flex items-center gap-1.5 text-xs">From<input type="date" className={`${field} !w-36 !py-1 !text-xs`} data-testid="input-start" value={sv} onChange={e => setStart(e.target.value)} /></label>
+          <label className="flex items-center gap-1.5 text-xs">To<input type="date" className={`${field} !w-36 !py-1 !text-xs`} data-testid="input-end" value={ev} onChange={e => setEnd(e.target.value)} /></label>
+          <button className={`${btn.ghost} !py-1 !text-xs`} disabled={sv === planner.start && ev === planner.end} data-testid="button-apply-dates" onClick={() => run(() => { w.setDates(sv, ev); setStart(null); setEnd(null); })}>Apply dates</button>
+          <span className="ml-auto text-[11px] text-muted-foreground">{w.scheduleLoading ? 'Loading schedule…' : schedule ? `${schedule.games.length} scheduled games · ${schedule.season}` : 'Schedule not loaded'}</span>
         </div>
-        {(sv !== planner.start || ev !== planner.end) && <p className="mt-2 text-xs font-semibold text-primary">Unapplied dates: the forecast still uses {planner.start} through {planner.end}. Select Apply dates to change it.</p>}
-        <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground" data-testid="text-schedule-meta">
-          <span>Applied: {planner.start} through {planner.end}</span>
-          {schedule ? <span>{schedule.source} / {schedule.season} / {schedule.games.length} games / fetched {when(schedule.fetchedAt)}</span> : <span>No schedule loaded</span>}
-          <button className={btn.ghost} data-testid="button-refresh-schedule" disabled={w.scheduleRefreshing || !w.validDates} onClick={() => run(() => { void w.refreshSchedule(); })}>
-            {w.scheduleRefreshing ? 'Refreshing...' : w.scheduleError ? 'Retry schedule' : 'Refresh schedule'}
-          </button>
-        </div>
-      </Panel>
+        {(sv !== planner.start || ev !== planner.end) && <p className="mt-2 text-xs font-semibold text-primary">Unapplied dates. Forecast still uses {planner.start} through {planner.end}. Applying dates clears expected-games overrides; rosters stay.</p>}
+        <details className="mt-1.5 border-t pt-1.5 text-xs" data-testid="details-data">
+          <summary className="cursor-pointer font-medium text-muted-foreground">Data sources & refresh <span className="ml-2 font-normal">ESPN projections / injuries · Yahoo positions</span></summary>
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground [&>span]:[overflow-wrap:anywhere]" data-testid="text-schedule-meta">
+            <span>Applied: {planner.start} through {planner.end}</span>
+            {schedule ? <span>{schedule.source} / {schedule.season} / {schedule.games.length} games / fetched {when(schedule.fetchedAt)}</span> : <span>No schedule loaded</span>}
+            <button className={btn.ghost} data-testid="button-refresh-schedule" disabled={w.scheduleRefreshing || !w.validDates} onClick={() => run(() => { void w.refreshSchedule(); })}>
+              {w.scheduleRefreshing ? 'Refreshing...' : w.scheduleError ? 'Retry schedule' : 'Refresh schedule'}
+            </button>
+          </div>
+          <div className="mt-2 space-y-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+            <p>Projections: {draft.state.source.label} {draft.state.source.season}, checked {when(draft.state.source.checkedAt ?? draft.state.source.fetchedAt ?? draft.state.source.importedAt)}</p>
+            <p>Eligibility: {draft.state.eligibilityFeed ? `${draft.state.eligibilityFeed.source}, fetched ${when(draft.state.eligibilityFeed.fetchedAt)}` : 'never loaded'}</p>
+            <p>Injuries: {draft.state.injuryFeed ? `checked ${when(draft.state.injuryFeed.checkedAt)}` : 'never checked'}</p>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button className={btn.ghost} data-testid="button-refresh-projections" disabled={ds.loadingProjections} onClick={() => run(() => { void ds.refreshProjections(); })}>{ds.loadingProjections ? 'Loading...' : 'Refresh projections'}</button>
+            <button className={btn.ghost} data-testid="button-refresh-injuries" disabled={ds.refreshing} onClick={() => run(() => { void ds.refreshInjuries(); })}>{ds.refreshing ? 'Checking...' : 'Refresh injuries'}</button>
+            <button className={btn.ghost} data-testid="button-refresh-eligibility" disabled={ds.loadingEligibility} onClick={() => run(() => { void ds.refreshEligibility(); })}>{ds.loadingEligibility ? 'Loading...' : 'Refresh eligibility'}</button>
+          </div>
+          <p className="mt-2 text-muted-foreground">Snapshots may be cached and stale; verify before locking. Changing dates clears all games overrides; rosters stay.</p>
+        </details>
+      </section>
 
-      <Panel title="Data sources">
-        <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground [&>span]:min-w-0 [&>span]:[overflow-wrap:anywhere]">
-          <span>Projections: {draft.state.source.label} {draft.state.source.season}, checked {when(draft.state.source.checkedAt ?? draft.state.source.fetchedAt ?? draft.state.source.importedAt)}</span>
-          <span>Eligibility: {draft.state.eligibilityFeed ? `${draft.state.eligibilityFeed.source}, fetched ${when(draft.state.eligibilityFeed.fetchedAt)}` : 'never loaded'}</span>
-          <span>Injuries: {draft.state.injuryFeed ? `checked ${when(draft.state.injuryFeed.checkedAt)}` : 'never checked'}</span>
+      <div className="sticky z-20 flex flex-wrap items-center gap-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur" style={{ top: demo ? 80 : 54 }} data-testid="bar-selection">
+        <div className="min-w-0 basis-full text-sm lg:basis-0 lg:flex-1" aria-live="polite" role="status" data-testid="text-lineup-status">
+          {ix.source ? <><span className="font-semibold">Moving {[...w.mine, ...w.opponent].find(r => r.player.id === ix.source!.id)?.player.name ?? 'player'}</span> <span className="text-xs text-muted-foreground">· {ix.source.side === 'mine' ? 'My team' : 'Opponent'} · Choose a highlighted slot. Esc cancels.</span></> : <span className="text-xs text-muted-foreground"><span className="lg:hidden">Drag a grip, or tap it then a position slot.</span><span className="hidden lg:inline">Drag a player’s grip to move. Or click the grip, then a slot. Legal occupied slots swap.</span></span>}
+          <span className="sr-only">{ix.announcement}</span>
         </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button className={btn.ghost} data-testid="button-refresh-projections" disabled={ds.loadingProjections} onClick={() => run(() => { void ds.refreshProjections(); })}>{ds.loadingProjections ? 'Loading...' : 'Refresh projections'}</button>
-          <button className={btn.ghost} data-testid="button-refresh-injuries" disabled={ds.refreshing} onClick={() => run(() => { void ds.refreshInjuries(); })}>{ds.refreshing ? 'Checking...' : 'Refresh injuries'}</button>
-          <button className={btn.ghost} data-testid="button-refresh-eligibility" disabled={ds.loadingEligibility} onClick={() => run(() => { void ds.refreshEligibility(); })}>{ds.loadingEligibility ? 'Loading...' : 'Refresh eligibility'}</button>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">Projection and eligibility snapshots may be cached and stale; verify before locking.</p>
-      </Panel>
+        {ix.source && <button type="button" className={btn.ghost} data-testid="button-cancel-move" onClick={ix.cancel}>Cancel move</button>}
+        {analysis && <span className="whitespace-nowrap text-xs" data-testid="text-current-score" title="Current lineup's sum of category win estimates; ties count half. Not a guaranteed score."><strong className="font-mono">{fmt(analysis.expectedCategoryPoints, 2)}</strong><span className="text-muted-foreground"> / 9 model pts</span></span>}
+        {rec && <span className="whitespace-nowrap font-mono text-xs text-accent" data-testid="text-improvement-inline">{gain >= 0.005 ? '+' : ''}{fmt(gain, 2)} with optimal</span>}
+        <button className={`${btn.primary} ml-auto`} data-testid="button-apply-optimal-top" disabled={!rec} onClick={applyOptimal}>Apply optimal lineup</button>
+      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title={`My team (${planner.myRosterIds.length})`} aside={
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <Panel title={`My team · ${planner.myRosterIds.length} players`} className="[&>div]:!p-3 [&>header]:!px-3 [&>header]:!py-2" aside={
           <ConfirmButton testId="button-use-draft" label="Use draft roster" confirmLabel="Replace my roster" description="Replaces this matchup roster with your Mine draft picks. Draft history is unchanged." onConfirm={() => run(w.useDraftRoster)} />
         }>
           <PlayerSearch side="mine" players={players} excluded={taken} onAdd={id => run(() => w.addPlayer('mine', id))} onAddIl={id => run(() => { if (!window.confirm('Confirm this player is actually Yahoo IL eligible in your league? ESPN Out status does not prove it.')) return; w.addPlayer('mine', id, true); })} />
-          {w.mine.length === 0 && <p className="mt-3 text-sm text-muted-foreground" data-testid="empty-mine">{planner.myRosterIds.length ? 'Roster rows appear once the schedule loads.' : 'No players yet. Search above or import your draft roster.'}</p>}
-          <p className="mt-2 text-xs text-muted-foreground">Non-IL roster: {planner.myRosterIds.length - (planner.myReserveIds?.length ?? 0)}/{draft.state.settings.rosterSlots.length}. Bench as many as needed; extra bench spaces appear automatically. IL: {(planner.myReserveIds ?? []).length}/{draft.state.settings.injuryReserveSlots}, with Yahoo eligibility confirmed by you. Bench and IL never score.</p>
+          {w.mine.length === 0 && <p className="mt-2 text-xs text-muted-foreground" data-testid="empty-mine">Search to add players, or use your draft roster.</p>}
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground" data-testid="text-roster-count-mine">
+            <span><strong className="text-foreground">{activeSlots.filter(s => w.myLineup[s.id]).length}/{activeSlots.length}</strong> active</span>
+            <span title="All starters and benched players count toward the 12 non-IL spots."><strong className="text-foreground">{planner.myRosterIds.length - (planner.myReserveIds?.length ?? 0)}/{draft.state.settings.rosterSlots.length}</strong> non-IL</span>
+            <span><strong className="text-foreground">{(planner.myReserveIds ?? []).length}/{draft.state.settings.injuryReserveSlots}</strong> IL</span>
+            <span className="ml-auto">Games: expected / scheduled</span>
+          </div>
           {board('mine')}
         </Panel>
-        <Panel title={`Opponent (${oppFilled}/${activeSlots.length} active)`} aside={
+        <Panel title={`Opponent · ${planner.opponentRosterIds.length} players`} className="[&>div]:!p-3 [&>header]:!px-3 [&>header]:!py-2" aside={
           <ConfirmButton testId="button-clear-opponent" label="Clear opponent" confirmLabel="Clear opponent" description="Removes every opponent player and their games overrides." disabled={!planner.opponentRosterIds.length} onConfirm={() => run(w.clearOpponent)} />
         }>
-          {oppIncomplete && <div className="mb-2"><Notice tone="warn" testId="warn-opponent-incomplete">Opponent uses {oppFilled} of {activeSlots.length} active slots. Vacancies can be intentional; confirm this matches their locked lineup. Benched players do not count.</Notice></div>}
           <PlayerSearch side="opponent" players={players} excluded={taken} onAdd={id => run(() => w.addPlayer('opponent', id))} onAddIl={id => run(() => { if (!window.confirm('Confirm this player is actually Yahoo IL eligible in your opponent’s league lineup? ESPN Out status does not prove it.')) return; w.addPlayer('opponent', id, true); })} />
-          {w.opponent.length === 0 && <p className="mt-3 text-sm text-muted-foreground" data-testid="empty-opponent">{planner.opponentRosterIds.length ? 'Roster rows appear once the schedule loads.' : 'No opponent players yet. Only Active players count toward their totals.'}</p>}
-          <p className="mt-2 text-xs text-muted-foreground">Non-IL roster: {planner.opponentRosterIds.length - (planner.opponentReserveIds?.length ?? 0)}/{draft.state.settings.rosterSlots.length}. Bench as many as needed. IL: {planner.opponentReserveIds?.length ?? 0}/{draft.state.settings.injuryReserveSlots}.</p>
+          {w.opponent.length === 0 && <p className="mt-2 text-xs text-muted-foreground" data-testid="empty-opponent">Search to add your opponent’s players.</p>}
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground" data-testid="text-roster-count-opponent">
+            <span><strong className="text-foreground">{oppFilled}/{activeSlots.length}</strong> active</span>
+            <span title="All starters and benched players count toward the 12 non-IL spots."><strong className="text-foreground">{planner.opponentRosterIds.length - (planner.opponentReserveIds?.length ?? 0)}/{draft.state.settings.rosterSlots.length}</strong> non-IL</span>
+            <span><strong className="text-foreground">{planner.opponentReserveIds?.length ?? 0}/{draft.state.settings.injuryReserveSlots}</strong> IL</span>
+            <span className="ml-auto">Games: expected / scheduled</span>
+          </div>
           {board('opponent')}
+          {oppIncomplete && planner.opponentRosterIds.length > 0 && <p className="mt-2 text-xs text-muted-foreground" data-testid="warn-opponent-incomplete">Uses {oppFilled}/{activeSlots.length} active slots. Vacancies can be intentional; match their locked Yahoo lineup.</p>}
         </Panel>
       </div>
+      <p className="text-[11px] text-muted-foreground">Bench as many players as needed; all count toward 12 non-IL spots. Bench and IL never score. IL requires your Yahoo eligibility confirmation. Player Details contains eligibility, schedule, and roster controls.</p>
 
       {!analysis && guard && <Panel title="Analysis"><p className="text-sm text-muted-foreground" data-testid="text-analysis-guard">{guard}</p></Panel>}
       {!analysis && !guard && !w.analysisError && <Panel title="Analysis"><p className="text-sm text-muted-foreground">No analysis available.</p></Panel>}
@@ -160,7 +150,8 @@ export default function Weekly() {
       {rec && (
         <Panel title="Optimal recommendation" aside={<span className="font-mono text-xs" data-testid="text-wins">{rec.projectedWins} ahead / {fmt(rec.expectedCategoryPoints, 2)} model pts / {rec.evaluatedLineups} lineups</span>}>
             <p className="mb-2 text-xs" data-testid="text-improvement">{analysis ? `${gain >= 0.005 ? '+' : ''}${fmt(gain, 2)} model pts vs your current lineup (${fmt(analysis.expectedCategoryPoints, 2)}).` : ''}</p>
-            <button className={`${btn.primary} mb-3`} data-testid="button-apply-optimal" disabled={!rec} onClick={() => run(w.applyOptimalLineup)}>Apply optimal lineup</button>
+            <button className={`${btn.primary} mb-3`} data-testid="button-apply-optimal" disabled={!rec} onClick={applyOptimal}>Apply optimal lineup</button>
+            <details data-testid="details-optimal"><summary className="mb-2 cursor-pointer text-sm font-semibold">View recommended starters and bench</summary>
             <ul className="grid gap-x-6 sm:grid-cols-2">
               {rec.starters.map((s, i) => (
                 <li key={i} className="flex items-center gap-3 border-b py-1.5" data-testid={`row-starter-${i}`}>
@@ -172,18 +163,22 @@ export default function Weekly() {
             {rec.starters.some(s => !s.player) && <p className="mt-3 text-xs text-muted-foreground">A vacancy is recommended where playing an available player would hurt the nine-category objective, usually through FG%, FT% or turnovers outweighing their counting stats. Players with 0 expected games cannot score.</p>}
             <p className="mt-3 text-xs"><span className="font-semibold">Regular bench (never scores):</span> {rec.bench.filter(b => !b.reserve).map(b => b.player.name).join(', ') || 'none'}<br /><span className="font-semibold">IL reserves (separate from ordinary bench):</span> {rec.bench.filter(b => b.reserve).map(b => b.player.name).join(', ') || 'none'}</p>
             <p className="mt-2 text-xs text-muted-foreground">Objective: maximize the sum of nine equal category win estimates (ties count half). No category is punted. This is not the chance of winning five.</p>
+            </details>
           </Panel>
       )}
+      <details className="rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground" data-testid="details-methodology"><summary className="cursor-pointer font-semibold">How projections work & important limitations</summary><p className="mt-2">Forecasts use per-game season projections across the full window, not live scores. Counting stats multiply per-game projections by expected active games. FG% and FT% divide total projected makes by total attempts, weighted by games. Lower turnovers wins.</p><p className="mt-2">Win chances are simplified independent Poisson-count and binomial-shooting normal approximations for planning. They are not calibrated probabilities or guaranteed wins. Copy recommended starters into Yahoo before the weekly lock; this app does not submit lineups. Older or started weeks can be explored but cannot change locked Yahoo lineups.</p></details>
+      <p className="text-[11px] text-muted-foreground">Planning estimates, not guaranteed wins. Apply here, then copy your lineup into Yahoo before the weekly lock.</p>
       {analysis && (
         <>
           <Panel title="Current lineup: nine categories" aside={<span className="font-mono text-xs">games {fmt(analysis.myTotals.games, 1)} vs {fmt(analysis.opponentTotals.games, 1)}</span>}>
+            <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)_3.5rem_3rem] gap-1 border-b pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid-cols-[3rem_1fr_1fr_5rem_4rem] sm:gap-2"><span>Cat</span><span>You</span><span>Opponent</span><span className="text-center">Edge</span><span className="text-right">Model</span></div>
             <ul className="divide-y">
               {analysis.categories.map(c => {
                 const m = analysis.myTotals, o = analysis.opponentTotals;
                 const sub = (t: typeof m) => c.key === 'fg' ? `${fmt(t.fgm)}/${fmt(t.fga)}` : c.key === 'ft' ? `${fmt(t.ftm)}/${fmt(t.fta)}` : '';
                 const tone = c.edge === 'ahead' ? 'bg-accent text-accent-foreground' : c.edge === 'behind' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground';
                 return (
-                  <li key={c.key} className="grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)_3.5rem_3rem] items-center gap-1 py-2 text-sm sm:grid-cols-[3rem_1fr_1fr_5rem_4rem] sm:gap-2" data-testid={`row-week-cat-${c.key}`}>
+                  <li key={c.key} className="grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)_3.5rem_3rem] items-center gap-1 py-1 text-sm sm:grid-cols-[3rem_1fr_1fr_5rem_4rem] sm:gap-2" data-testid={`row-week-cat-${c.key}`}>
                     <span className="font-semibold">{CAT_LABEL[c.key]}</span>
                     <span className="font-mono">{val(c.key, c.mine)}<span className="block text-[10px] text-muted-foreground">{sub(m)}</span></span>
                     <span className="font-mono">{val(c.key, c.opponent)}<span className="block text-[10px] text-muted-foreground">{sub(o)}</span></span>
