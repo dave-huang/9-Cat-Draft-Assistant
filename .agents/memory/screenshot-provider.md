@@ -15,8 +15,8 @@ Treat direct-key Gemini access separately from the managed integration's model c
 
 **How to apply:** Verify a real image response before declaring recognition ready after provider/model changes. A mocked browser pass only verifies the import workflow, not live recognition.
 
-An authenticated model listing proves metadata access, not successful generation. Classify Google failures by HTTP status before interpreting message wording.
+An authenticated model listing proves metadata access, not successful generation or new-user eligibility. Prefer a release verified with an actual image request over the newest listed version. Classify Google failures by HTTP status before interpreting message wording.
 
-**Why:** Google listed the configured model while generation returned temporary-unavailable responses. Matching the word “model” in an error had incorrectly labeled quota/overload failures as model access problems.
+**Why:** Google listed models whose generation calls reported high demand or rejected new users, while another established Flash release successfully read an image with the same key. Matching the word “model” in an error had also incorrectly labeled quota/overload failures as model access problems.
 
 **How to apply:** Check authenticated metadata before changing models; never infer a missing model from “model” alone or recommend replacing a key solely because of a temporary service failure.
