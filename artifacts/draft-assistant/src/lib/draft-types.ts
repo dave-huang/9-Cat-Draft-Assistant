@@ -42,6 +42,10 @@ export interface WeeklyPlannerState {
   end: string;
   myRosterIds: string[];
   myReserveIds?: string[];
+  myLineup?: Record<string, string>;
+  opponentLineup?: Record<string, string>;
+  opponentReserveIds?: string[];
+  ilEligibleIds?: string[];
   opponentRosterIds: string[];
   opponentStarterIds: string[];
   expectedGames: Record<string, number>;

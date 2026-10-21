@@ -136,11 +136,19 @@ export function parseProjections(text: string): Player[] {
   });
 }
 
+const lineupSchema = z.record(z.string().regex(/^(PG|SG|G|SF|PF|F|C|UTIL|BN|IL)-[1-9]\d?$/), z.string()).refine(
+  lineup => Object.values(lineup).length <= 30 && new Set(Object.values(lineup)).size === Object.values(lineup).length,
+  { message: 'A player can occupy only one weekly lineup slot.' },
+);
 export const matchupSchema = z.object({
   start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   myRosterIds: z.array(z.string()).max(18),
   myReserveIds: z.array(z.string()).max(10).optional(),
+  myLineup: lineupSchema.optional(),
+  opponentLineup: lineupSchema.optional(),
+  opponentReserveIds: z.array(z.string()).max(10).optional(),
+  ilEligibleIds: z.array(z.string()).max(36).optional(),
   opponentRosterIds: z.array(z.string()).max(18),
   opponentStarterIds: z.array(z.string()).max(18),
   expectedGames: z.record(z.string(), z.number().min(0).max(14)),
@@ -148,7 +156,11 @@ export const matchupSchema = z.object({
   const all = [...m.myRosterIds, ...m.opponentRosterIds];
   return new Set(all).size === all.length && new Set(m.opponentStarterIds).size === m.opponentStarterIds.length &&
     m.opponentStarterIds.every(id => m.opponentRosterIds.includes(id)) &&
-    new Set(m.myReserveIds ?? []).size === (m.myReserveIds?.length ?? 0) && (m.myReserveIds ?? []).every(id => m.myRosterIds.includes(id));
+    new Set(m.myReserveIds ?? []).size === (m.myReserveIds?.length ?? 0) && (m.myReserveIds ?? []).every(id => m.myRosterIds.includes(id)) &&
+    new Set(m.opponentReserveIds ?? []).size === (m.opponentReserveIds?.length ?? 0) && (m.opponentReserveIds ?? []).every(id => m.opponentRosterIds.includes(id)) &&
+    new Set(m.ilEligibleIds ?? []).size === (m.ilEligibleIds?.length ?? 0) && (m.ilEligibleIds ?? []).every(id => all.includes(id)) &&
+    Object.values(m.myLineup ?? {}).every(id => m.myRosterIds.includes(id)) &&
+    Object.values(m.opponentLineup ?? {}).every(id => m.opponentRosterIds.includes(id));
 }, { message: 'Weekly roster identities must be unique and opponent starters must belong to that roster.' });
 const stateSchema = z.object({
   version: z.literal(1),

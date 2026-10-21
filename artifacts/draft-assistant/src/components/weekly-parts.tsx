@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Notice, btn, errMsg, field, fmt } from '@/components/bits';
 import type { Player } from '@/lib/draft-types';
 import type { WeeklyPlayer } from '@/lib/weekly-engine';
@@ -26,7 +26,7 @@ export function PlayerSearch({ side, players, excluded, onAdd, onAddIl }: { side
                 <span className="font-semibold">{p.name}</span>
                 <span className="font-mono text-[11px] text-muted-foreground">{p.team} {p.positions.join('/')}</span>
               </button>
-              {onAddIl && <button type="button" className="px-3 py-1.5 text-xs font-semibold underline hover:bg-secondary" data-testid={`button-add-il-${p.id}`} onClick={() => { onAddIl(p.id); setQ(''); }}>Add to IL</button>}
+              {onAddIl && <button type="button" className="px-3 py-1.5 text-xs font-semibold underline hover:bg-secondary" data-testid={`button-add-il-${side}-${p.id}`} onClick={() => { onAddIl(p.id); setQ(''); }}>Add to IL</button>}
             </li>
           ))}
         </ul>
@@ -36,9 +36,9 @@ export function PlayerSearch({ side, players, excluded, onAdd, onAddIl }: { side
   );
 }
 
-export function RosterRow({ row, side, active, starterMode, onRemove, onGames, onActive, onReserve, onPositions, onError }: {
+export function RosterRow({ row, side, active, starterMode, onRemove, onGames, onActive, onReserve, onPositions, onError, extra }: {
   row: WeeklyPlayer; side: string; active?: boolean; starterMode?: boolean;
-  onRemove: () => void; onGames: (v?: number) => void; onActive?: (a: boolean) => void; onReserve?: (r: boolean) => void; onPositions?: () => void; onError: (m: string) => void;
+  onRemove: () => void; onGames: (v?: number) => void; onActive?: (a: boolean) => void; onReserve?: (r: boolean) => void; onPositions?: () => void; onError: (m: string) => void; extra?: ReactNode;
 }) {
   const p = row.player;
   const [draft, setDraft] = useState<string | null>(null);
@@ -66,6 +66,7 @@ export function RosterRow({ row, side, active, starterMode, onRemove, onGames, o
             {active ? 'Active' : 'Bench'}
           </label>
         )}
+        {extra}
         <span className="min-w-0 text-sm font-semibold">{p.name}</span>
         <span className="font-mono text-[11px] text-muted-foreground">
           {p.team} <button className="underline decoration-dotted underline-offset-4" title="View or correct Yahoo positions" data-testid={`button-weekly-positions-${p.id}`} onClick={() => onPositions?.()}>{p.positions.join('/')} ({positionSourceLabel(p)})</button>
@@ -89,5 +90,24 @@ export function RosterRow({ row, side, active, starterMode, onRemove, onGames, o
       {row.warning && <div className="mt-1"><Notice tone="warn">{row.warning}</Notice></div>}
       {p.injuryNote && <div className="mt-1 text-xs text-muted-foreground">{p.injuryNote}</div>}
     </li>
+  );
+}
+
+type Opt = { slot: { id: string; label: string }; allowed: boolean; reason?: string };
+export function MoveSelect({ id, options, onMove }: { id: string; options: Opt[]; onMove: (slotId: string) => void }) {
+  return (
+    <select className={`${field} !w-36 max-w-full`} aria-label="Move to slot" data-testid={`select-move-${id}`} value="" onChange={e => { if (e.target.value) onMove(e.target.value); }}>
+      <option value="">Move to...</option>
+      {options.map(o => <option key={o.slot.id} value={o.slot.id} disabled={!o.allowed} title={o.reason}>{o.slot.label}{o.allowed ? '' : ' (not eligible / cannot swap)'}</option>)}
+    </select>
+  );
+}
+
+export function IlConfirm({ id, checked, onChange }: { id: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+      <input type="checkbox" checked={checked} data-testid={`checkbox-il-eligible-${id}`} onChange={e => onChange(e.target.checked)} />
+      Yahoo IL eligible
+    </label>
   );
 }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useWeeklyPlanner } from '@/hooks/use-weekly';
 import { CAT_LABEL, ConfirmButton, Notice, Panel, btn, errMsg, field, fmt } from '@/components/bits';
-import { PlayerSearch, RosterRow, pct } from '@/components/weekly-parts';
+import { IlConfirm, MoveSelect, PlayerSearch, RosterRow, pct } from '@/components/weekly-parts';
 import type { CategoryKey, Player, Position } from '@/lib/draft-types';
 
 const when = (s?: string) => (s ? new Date(s).toLocaleString() : 'unknown');
@@ -9,16 +9,57 @@ const val = (k: CategoryKey, n: number) => (k === 'fg' || k === 'ft' ? pct(n) : 
 
 export default function Weekly() {
   const w = useWeeklyPlanner();
-  const { planner, draft, analysis: computedAnalysis, schedule, dataStatus: ds } = w;
+  const { planner, draft, analysis: optimal, currentAnalysis, schedule, dataStatus: ds } = w;
   const [error, setError] = useState('');
   const [start, setStart] = useState<string | null>(null);
   const [end, setEnd] = useState<string | null>(null);
   const run = (fn: () => void) => { try { fn(); setError(''); } catch (e) { setError(errMsg(e)); } };
   const taken = useMemo(() => new Set([...planner.myRosterIds, ...planner.opponentRosterIds]), [planner]);
   const players = draft.state.players;
-  const activeIds = new Set(planner.opponentStarterIds);
-  const activeCount = w.activeSlots.length;
-  const oppIncomplete = planner.opponentStarterIds.length < activeCount;
+  const activeSlots = w.slots.filter(s => s.kind === 'active');
+  const oppFilled = activeSlots.filter(s => w.opponentLineup[s.id]).length;
+  const oppIncomplete = oppFilled < activeSlots.length;
+  const lineupBad = w.lineupErrors.mine.length + w.lineupErrors.opponent.length > 0;
+  const ilSet = new Set(planner.ilEligibleIds ?? []);
+  const board = (side: 'mine' | 'opponent') => {
+    const rows = side === 'mine' ? w.mine : w.opponent;
+    const lineup = side === 'mine' ? w.myLineup : w.opponentLineup;
+    const byId = new Map(rows.map(r => [r.player.id, r]));
+    const assigned = new Set(w.slots.flatMap(sl => lineup[sl.id] ? [lineup[sl.id]] : []));
+    const unassigned = rows.filter(r => !assigned.has(r.player.id));
+    const render = (r: typeof rows[number]) => (
+      <RosterRow key={r.player.id} row={r} side={side} onError={setError} onPositions={() => editPositions(r.player)}
+        extra={<>
+          <MoveSelect id={r.player.id} options={w.moveOptions(side, r.player.id)} onMove={t => run(() => w.movePlayer(side, r.player.id, t))} />
+          <IlConfirm id={r.player.id} checked={ilSet.has(r.player.id)} onChange={v => run(() => w.setIlEligible(r.player.id, v))} />
+        </>}
+        onRemove={() => w.removePlayer(side, r.player.id)} onGames={v => w.setExpectedGames(r.player.id, v)} />
+    );
+    return (
+      <>
+        {w.lineupErrors[side].map((m, i) => <div key={i} className="mt-2"><Notice tone="error" testId={`text-lineup-error-${side}-${i}`}>{m}</Notice></div>)}
+        <ul className="mt-2 divide-y">
+          {w.slots.map(sl => {
+            const pid = lineup[sl.id], r = pid ? byId.get(pid) : undefined;
+            return (
+              <li key={sl.id} className="flex gap-2 py-1" data-testid={`slot-${side}-${sl.id}`}>
+                <span className={`mt-3 w-12 shrink-0 rounded py-0.5 text-center font-mono text-xs font-semibold ${sl.kind === 'active' ? 'bg-secondary' : sl.kind === 'il' ? 'bg-primary/15' : 'bg-muted text-muted-foreground'}`}>{sl.label}</span>
+                <div className="min-w-0 flex-1">
+                  {r ? <ul>{render(r)}</ul> : <p className="py-3 text-sm text-muted-foreground" data-testid={`empty-slot-${side}-${sl.id}`}>Empty</p>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        {unassigned.length > 0 && (
+          <div className="mt-3" data-testid={`list-unassigned-${side}`}>
+            <p className="text-xs font-semibold">Unassigned ({unassigned.length}): move to an eligible slot or remove.</p>
+            <ul className="divide-y">{unassigned.map(render)}</ul>
+          </div>
+        )}
+      </>
+    );
+  };
   const sv = start ?? planner.start, ev = end ?? planner.end;
   const demo = draft.state.source.isDemo;
   const unverified = [...w.mine, ...w.opponent].filter(({ player: p }) => !p.positionsVerified && p.positionsSource !== 'Manual' && (p.positionsSource !== 'Yahoo' || p.yahooEligibilityMissing || p.positionsConflict));
@@ -31,8 +72,10 @@ export default function Weekly() {
   else if (w.scheduleError || !schedule) guard = 'Schedule unavailable. Retry to analyze.';
   else if (!schedule.games.some(g => !['postponed', 'canceled'].includes(g.status))) guard = 'No playable games in this window.';
   else if (!planner.myRosterIds.length) guard = 'Add players to your roster first.';
-  else if (!planner.opponentStarterIds.length) guard = 'Add opponent players and mark starters Active.';
-  const analysis = guard ? undefined : computedAnalysis;
+  else if (lineupBad) guard = 'Fix the lineup errors above to see a trusted forecast.';
+  const analysis = guard ? undefined : currentAnalysis;
+  const rec = guard ? undefined : optimal;
+  const gain = rec && analysis ? rec.expectedCategoryPoints - analysis.expectedCategoryPoints : 0;
   const editPositions = (player: Player) => {
     const value = window.prompt(`Enter ${player.name}'s positions from your Yahoo league (PG/SG/SF/PF/C). ${player.yahooPositions ? `Yahoo public positions: ${player.yahooPositions.join('/')}. ` : ''}Manual corrections take priority over public data.`, player.positions.join('/'));
     if (value === null) return;
@@ -94,46 +137,44 @@ export default function Weekly() {
         <Panel title={`My team (${planner.myRosterIds.length})`} aside={
           <ConfirmButton testId="button-use-draft" label="Use draft roster" confirmLabel="Replace my roster" description="Replaces this matchup roster with your Mine draft picks. Draft history is unchanged." onConfirm={() => run(w.useDraftRoster)} />
         }>
-          <PlayerSearch side="mine" players={players} excluded={taken} onAdd={id => run(() => w.addPlayer('mine', id))} onAddIl={id => run(() => w.addPlayer('mine', id, true))} />
+          <PlayerSearch side="mine" players={players} excluded={taken} onAdd={id => run(() => w.addPlayer('mine', id))} onAddIl={id => run(() => { if (!window.confirm('Confirm this player is actually Yahoo IL eligible in your league? ESPN Out status does not prove it.')) return; w.addPlayer('mine', id, true); })} />
           {w.mine.length === 0 && <p className="mt-3 text-sm text-muted-foreground" data-testid="empty-mine">{planner.myRosterIds.length ? 'Roster rows appear once the schedule loads.' : 'No players yet. Search above or import your draft roster.'}</p>}
-          <p className="mt-2 text-xs text-muted-foreground">IL reserves ({(planner.myReserveIds ?? []).length}/{draft.state.settings.injuryReserveSlots}) never score. Mirror changes in Yahoo and verify IL eligibility there; an ESPN Out status alone does not prove it. Leaving IL may require removing a regular player first.</p>
-          <ul className="mt-2 divide-y">
-            {w.mine.map(r => <RosterRow key={r.player.id} row={r} side="mine" onError={setError} onReserve={res => w.setMyReserve(r.player.id, res)} onPositions={() => editPositions(r.player)}
-              onRemove={() => w.removePlayer('mine', r.player.id)} onGames={v => w.setExpectedGames(r.player.id, v)} />)}
-          </ul>
+          <p className="mt-2 text-xs text-muted-foreground">Slots mirror your league. IL slots ({(planner.myReserveIds ?? []).length}/{draft.state.settings.injuryReserveSlots}) never score and need Yahoo IL eligibility confirmed by you.</p>
+          {board('mine')}
         </Panel>
-        <Panel title={`Opponent (${activeIds.size}/${activeCount} active)`} aside={
+        <Panel title={`Opponent (${oppFilled}/${activeSlots.length} active)`} aside={
           <ConfirmButton testId="button-clear-opponent" label="Clear opponent" confirmLabel="Clear opponent" description="Removes every opponent player and their games overrides." disabled={!planner.opponentRosterIds.length} onConfirm={() => run(w.clearOpponent)} />
         }>
-          {oppIncomplete && <div className="mb-2"><Notice tone="warn" testId="warn-opponent-incomplete">Opponent active roster is incomplete ({activeIds.size} of {activeCount}). Their totals are understated, so your edges are overstated.</Notice></div>}
-          <PlayerSearch side="opponent" players={players} excluded={taken} onAdd={id => run(() => w.addPlayer('opponent', id))} />
+          {oppIncomplete && <div className="mb-2"><Notice tone="warn" testId="warn-opponent-incomplete">Opponent active roster is incomplete ({oppFilled} of {activeSlots.length}). Their totals are understated, so your edges are overstated.</Notice></div>}
+          <PlayerSearch side="opponent" players={players} excluded={taken} onAdd={id => run(() => w.addPlayer('opponent', id))} onAddIl={id => run(() => { if (!window.confirm('Confirm this player is actually Yahoo IL eligible in your opponent’s league lineup? ESPN Out status does not prove it.')) return; w.addPlayer('opponent', id, true); })} />
           {w.opponent.length === 0 && <p className="mt-3 text-sm text-muted-foreground" data-testid="empty-opponent">{planner.opponentRosterIds.length ? 'Roster rows appear once the schedule loads.' : 'No opponent players yet. Only Active players count toward their totals.'}</p>}
-          <ul className="mt-2 divide-y">
-            {w.opponent.map(r => <RosterRow key={r.player.id} row={r} side="opponent" starterMode active={activeIds.has(r.player.id)} onError={setError} onPositions={() => editPositions(r.player)}
-              onActive={a => w.setOpponentStarter(r.player.id, a)}
-              onRemove={() => w.removePlayer('opponent', r.player.id)} onGames={v => w.setExpectedGames(r.player.id, v)} />)}
-          </ul>
+          {board('opponent')}
         </Panel>
       </div>
 
       {!analysis && guard && <Panel title="Analysis"><p className="text-sm text-muted-foreground" data-testid="text-analysis-guard">{guard}</p></Panel>}
       {!analysis && !guard && !w.analysisError && <Panel title="Analysis"><p className="text-sm text-muted-foreground">No analysis available.</p></Panel>}
-      {analysis && (
-        <>
-          <Panel title="Recommended starters" aside={<span className="font-mono text-xs" data-testid="text-wins">{analysis.projectedWins} ahead / {fmt(analysis.expectedCategoryPoints, 2)} model pts / {analysis.evaluatedLineups} lineups</span>}>
+      {guard === null && !rec && !w.analysisError && <Panel title="Optimal recommendation"><button className={btn.primary} data-testid="button-apply-optimal" disabled>Apply optimal lineup</button></Panel>}
+      {rec && (
+        <Panel title="Optimal recommendation" aside={<span className="font-mono text-xs" data-testid="text-wins">{rec.projectedWins} ahead / {fmt(rec.expectedCategoryPoints, 2)} model pts / {rec.evaluatedLineups} lineups</span>}>
+            <p className="mb-2 text-xs" data-testid="text-improvement">{analysis ? `${gain >= 0.005 ? '+' : ''}${fmt(gain, 2)} model pts vs your current lineup (${fmt(analysis.expectedCategoryPoints, 2)}).` : ''}</p>
+            <button className={`${btn.primary} mb-3`} data-testid="button-apply-optimal" disabled={!rec} onClick={() => run(w.applyOptimalLineup)}>Apply optimal lineup</button>
             <ul className="grid gap-x-6 sm:grid-cols-2">
-              {analysis.starters.map((s, i) => (
+              {rec.starters.map((s, i) => (
                 <li key={i} className="flex items-center gap-3 border-b py-1.5" data-testid={`row-starter-${i}`}>
                   <span className="w-10 rounded bg-secondary py-0.5 text-center font-mono text-xs font-semibold">{s.slot}</span>
                   <span className={`text-sm ${s.player ? 'font-semibold' : 'text-muted-foreground'}`}>{s.player ? s.player.name : 'Vacant'}</span>
                 </li>
               ))}
             </ul>
-            {analysis.starters.some(s => !s.player) && <p className="mt-3 text-xs text-muted-foreground">A vacancy is recommended where playing an available player would hurt the nine-category objective, usually through FG%, FT% or turnovers outweighing their counting stats. Players with 0 expected games cannot score.</p>}
-            <p className="mt-3 text-xs"><span className="font-semibold">Regular bench (never scores):</span> {analysis.bench.filter(b => !b.reserve).map(b => b.player.name).join(', ') || 'none'}<br /><span className="font-semibold">IL reserves (separate from ordinary bench):</span> {analysis.bench.filter(b => b.reserve).map(b => b.player.name).join(', ') || 'none'}</p>
+            {rec.starters.some(s => !s.player) && <p className="mt-3 text-xs text-muted-foreground">A vacancy is recommended where playing an available player would hurt the nine-category objective, usually through FG%, FT% or turnovers outweighing their counting stats. Players with 0 expected games cannot score.</p>}
+            <p className="mt-3 text-xs"><span className="font-semibold">Regular bench (never scores):</span> {rec.bench.filter(b => !b.reserve).map(b => b.player.name).join(', ') || 'none'}<br /><span className="font-semibold">IL reserves (separate from ordinary bench):</span> {rec.bench.filter(b => b.reserve).map(b => b.player.name).join(', ') || 'none'}</p>
             <p className="mt-2 text-xs text-muted-foreground">Objective: maximize the sum of nine equal category win estimates (ties count half). No category is punted. This is not the chance of winning five.</p>
           </Panel>
-          <Panel title="Nine categories" aside={<span className="font-mono text-xs">games {fmt(analysis.myTotals.games, 1)} vs {fmt(analysis.opponentTotals.games, 1)}</span>}>
+      )}
+      {analysis && (
+        <>
+          <Panel title="Current lineup: nine categories" aside={<span className="font-mono text-xs">games {fmt(analysis.myTotals.games, 1)} vs {fmt(analysis.opponentTotals.games, 1)}</span>}>
             <ul className="divide-y">
               {analysis.categories.map(c => {
                 const m = analysis.myTotals, o = analysis.opponentTotals;
