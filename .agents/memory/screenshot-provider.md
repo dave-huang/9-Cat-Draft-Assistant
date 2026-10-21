@@ -14,3 +14,9 @@ Treat direct-key Gemini access separately from the managed integration's model c
 **Why:** The screenshot review and lineup-save flow passed with supplied recognition results while direct provider requests remained unavailable or timed out.
 
 **How to apply:** Verify a real image response before declaring recognition ready after provider/model changes. A mocked browser pass only verifies the import workflow, not live recognition.
+
+An authenticated model listing proves metadata access, not successful generation. Classify Google failures by HTTP status before interpreting message wording.
+
+**Why:** Google listed the configured model while generation returned temporary-unavailable responses. Matching the word “model” in an error had incorrectly labeled quota/overload failures as model access problems.
+
+**How to apply:** Check authenticated metadata before changing models; never infer a missing model from “model” alone or recommend replacing a key solely because of a temporary service failure.

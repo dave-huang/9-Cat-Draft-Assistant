@@ -1,7 +1,7 @@
 import { ReadLineupScreenshotResponse, type LineupScreenshotInput, type LineupScreenshotReading } from '@workspace/api-zod';
 
 export class ScreenshotError extends Error {
-  constructor(public status: number, public code: string, message: string) { super(message); }
+  constructor(public status: number, public code: string, message: string, public providerStatus?: number) { super(message); }
 }
 
 export function validateScreenshot(input: LineupScreenshotInput) {
@@ -67,6 +67,14 @@ export async function readScreenshot(
     throw new ScreenshotError(503, 'gemini_unavailable', 'Gemini did not respond in time. Try again or use manual entry. Your saved lineups are unchanged.');
   }
   if (!response.ok) {
+    const failure = (status: number, code: string, message: string) =>
+      new ScreenshotError(status, code, message, response.status);
+    // HTTP status takes precedence over wording. Google commonly mentions the
+    // model in quota/overload errors; that does not mean it is missing.
+    if (response.status === 429)
+      throw failure(429, 'gemini_rate_limit', 'Gemini quota or rate limit reached. Check your Google API quota/billing, or try later. Your lineups are unchanged.');
+    if (response.status >= 500)
+      throw failure(503, 'gemini_unavailable', 'Google’s Gemini service is temporarily unavailable. Please try later or use manual entry. Your saved lineups are unchanged.');
     // Never echo or log a provider body, which may contain credentials or image content.
     let category = '';
     try {
@@ -77,15 +85,13 @@ export async function readScreenshot(
       if (/API_KEY_INVALID|API_KEY_EXPIRED/.test(reasons) || /API key not valid|API key expired/i.test(message)) category = 'key';
       else if (/location|region|country/i.test(message)) category = 'location';
       else if (/response.?schema|generation.?config/i.test(message)) category = 'request';
-      else if (/model/i.test(message)) category = 'model';
     } catch { /* Non-JSON provider errors use the fixed generic message below. */ }
-    if (category === 'key') throw new ScreenshotError(503, 'gemini_key_invalid', 'Google reports that GEMINI_API_KEY is invalid or expired. Replace it in project Secrets with a valid Gemini API key. Your lineups are unchanged.');
-    if (category === 'location') throw new ScreenshotError(503, 'gemini_location_restricted', 'Google does not allow this Gemini request from the server’s region. Your lineups are unchanged.');
-    if (response.status === 404 || category === 'model') throw new ScreenshotError(503, 'gemini_model_unavailable', 'The configured Gemini model is not available for this API key. Your lineups are unchanged.');
-    if (category === 'request') throw new ScreenshotError(503, 'gemini_request_invalid', 'Google rejected the screenshot recognition request format. Your lineups are unchanged.');
-    if (response.status === 429) throw new ScreenshotError(429, 'gemini_rate_limit', 'Gemini quota or rate limit reached. Check your Google API quota/billing, or try later. Your lineups are unchanged.');
-    if (response.status === 401 || response.status === 403) throw new ScreenshotError(503, 'gemini_access_denied', 'Gemini rejected the server API key or its permissions. Check GEMINI_API_KEY and Google API access. Your lineups are unchanged.');
-    throw new ScreenshotError(503, 'gemini_unavailable', 'Gemini could not read the screenshot. Try again or use manual entry. Your saved lineups are unchanged.');
+    if (category === 'key') throw failure(503, 'gemini_key_invalid', 'Google reports that GEMINI_API_KEY is invalid or expired. Replace it in project Secrets with a valid Gemini API key. Your lineups are unchanged.');
+    if (category === 'location') throw failure(503, 'gemini_location_restricted', 'Google does not allow this Gemini request from the server’s region. Your lineups are unchanged.');
+    if (response.status === 401 || response.status === 403) throw failure(503, 'gemini_access_denied', 'Gemini rejected the server API key or its permissions. Check GEMINI_API_KEY and Google API access. Your lineups are unchanged.');
+    if (response.status === 404) throw failure(503, 'gemini_model_unavailable', 'Google could not find the configured Gemini model for screenshot recognition. Your lineups are unchanged.');
+    if (category === 'request') throw failure(503, 'gemini_request_invalid', 'Google rejected the screenshot recognition request format. Your lineups are unchanged.');
+    throw failure(503, 'gemini_unavailable', 'Gemini could not read the screenshot. Try again or use manual entry. Your saved lineups are unchanged.');
   }
   try {
     const result = await response.json() as { candidates?: { finishReason?: string; content?: { parts?: { text?: string; thought?: boolean }[] } }[] };

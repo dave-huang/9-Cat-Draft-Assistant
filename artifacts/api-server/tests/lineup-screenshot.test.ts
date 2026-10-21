@@ -61,6 +61,28 @@ test('provider configuration diagnostics are actionable without exposing provide
   }
 });
 
+test('model wording cannot turn overload, quota or permission errors into missing-model errors', async () => {
+  for (const [status, message, code] of [
+    [503, 'The model is overloaded. DO-NOT-ECHO', 'gemini_unavailable'],
+    [502, 'Upstream model service unavailable. DO-NOT-ECHO', 'gemini_unavailable'],
+    [504, 'Model request timed out. DO-NOT-ECHO', 'gemini_unavailable'],
+    [429, 'Quota exceeded for model gemini-3.8-flash. DO-NOT-ECHO', 'gemini_rate_limit'],
+    [403, 'Permission denied to use the model. DO-NOT-ECHO', 'gemini_access_denied'],
+    [400, 'Invalid model generation_config response_schema. DO-NOT-ECHO', 'gemini_request_invalid'],
+    [404, 'Requested entity was not found. DO-NOT-ECHO', 'gemini_model_unavailable'],
+  ] as const) {
+    let calls = 0;
+    await assert.rejects(readScreenshot(image, { key: 'test-key', fetcher: async () => {
+      calls++;
+      return Response.json({ error: { message } }, { status });
+    } }), (e: unknown) => e instanceof ScreenshotError && e.code === code &&
+      e.providerStatus === status && !e.message.includes('DO-NOT-ECHO') &&
+      !e.message.includes('test-key') &&
+      (status !== 503 || e.message.includes('temporarily unavailable')));
+    assert.equal(calls, 1, 'Never automatically repeat a paid generation request');
+  }
+});
+
 test('refusals, truncations, malformed JSON and invented slots fail explicitly', async () => {
   for (const response of [
     providerResponse(reading, 'MAX_TOKENS'),

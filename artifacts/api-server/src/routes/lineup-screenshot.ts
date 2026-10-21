@@ -23,7 +23,7 @@ router.post('/lineup-screenshot', async (req, res): Promise<void> => {
   try { res.json(await readScreenshot(parsed.data)); }
   catch (error) {
     const safe = error instanceof ScreenshotError ? error : new ScreenshotError(503, 'screenshot_unavailable', 'Screenshot recognition is unavailable. Your saved lineups are unchanged.');
-    req.log?.warn({ code: safe.code }, 'Screenshot recognition failed');
+    req.log?.warn({ code: safe.code, providerStatus: safe.providerStatus }, 'Screenshot recognition failed');
     res.status(safe.status).json({ code: safe.code, error: safe.message });
   } finally { active--; }
 });
