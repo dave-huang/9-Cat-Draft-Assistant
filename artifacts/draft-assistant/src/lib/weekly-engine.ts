@@ -104,13 +104,11 @@ export interface WeeklyAnalysis {
  * if a player's percentage/TO damage outweighs their counting-stat benefit.
  * All nine categories have equal value. No category is zero-weighted.
  */
-export function optimizeWeekly(mine: WeeklyPlayer[], opponent: WeeklyPlayer[], slots: RosterSlot[], benchCapacity = Infinity): WeeklyAnalysis {
+export function optimizeWeekly(mine: WeeklyPlayer[], opponent: WeeklyPlayer[], slots: RosterSlot[]): WeeklyAnalysis {
   const active = slots.filter(s => s !== 'BN');
   if (!active.length || mine.length > 18) throw new Error('Weekly optimization supports 1–18 roster players with active slots.');
   if (assignRoster(opponent.map(r => r.player), active).fitted !== opponent.length) throw new Error('Opponent starters do not fit the league’s active slots. Move extra/ineligible players to their bench.');
-  // Zero-game players still need a real roster slot. With only two BN slots,
-  // they may have to occupy an active slot (contributing zero).
-  const pool = mine.filter(r => !r.reserve && (r.expectedGames > 0 || Number.isFinite(benchCapacity)));
+  const pool = mine.filter(r => !r.reserve && r.expectedGames > 0);
   const opponentTotals = totalWeeklyStats(opponent);
   let best: WeeklyPlayer[] = [], bestScore = -Infinity, bestFloor = -Infinity, evaluatedLineups = 0;
   function visit(index: number, selected: WeeklyPlayer[]) {
@@ -119,8 +117,7 @@ export function optimizeWeekly(mine: WeeklyPlayer[], opponent: WeeklyPlayer[], s
       if (selected.length < active.length) { selected.push(pool[index]!); visit(index + 1, selected); selected.pop(); }
       return;
     }
-    if (mine.filter(r => !r.reserve).length - selected.length > benchCapacity ||
-        assignRoster(selected.map(r => r.player), active).fitted !== selected.length) return;
+    if (assignRoster(selected.map(r => r.player), active).fitted !== selected.length) return;
     evaluatedLineups++;
     const cats = compareWeekly(totalWeeklyStats(selected), opponentTotals);
     const score = cats.reduce((a, c) => a + c.modelWinChance, 0), floor = Math.min(...cats.map(c => c.modelWinChance));
@@ -129,7 +126,6 @@ export function optimizeWeekly(mine: WeeklyPlayer[], opponent: WeeklyPlayer[], s
     }
   }
   visit(0, []);
-  if (!Number.isFinite(bestScore)) throw new Error('No legal lineup fits the active and bench slots. Check positions, roster size and IL placement.');
   const myTotals = totalWeeklyStats(best), categories = compareWeekly(myTotals, opponentTotals);
   const chosen = new Set(best.map(p => p.player.id));
   return { starters: assignRoster(best.map(r => r.player), active).assignment, bench: mine.filter(r => !chosen.has(r.player.id)),

@@ -5,7 +5,7 @@ import { useDraftData } from './use-draft-data';
 import { createMatchup, optimizeWeekly, validMatchupDates, weeklyPlayers } from '@/lib/weekly-engine';
 import type { Player, WeeklyPlannerState } from '@/lib/draft-types';
 import type { WeeklyPlayer } from '@/lib/weekly-engine';
-import { currentWeeklyAnalysis, eligibleWeeklySlot, lineupErrors, moveWeeklyPlayer, optimalWeeklyLineup, prepareWeeklyPlanner, syncWeeklyLineups, weeklySlots, type WeeklyLineup, type WeeklySide } from '@/lib/weekly-lineup';
+import { currentWeeklyAnalysis, eligibleWeeklySlot, lineupErrors, moveWeeklyPlayer, optimalWeeklyLineup, prepareWeeklyPlanner, syncWeeklyLineups, visibleWeeklySlots, weeklySlots, type WeeklyLineup, type WeeklySide } from '@/lib/weekly-lineup';
 
 const pendingRows = (players: Player[]): WeeklyPlayer[] => players.map(player => ({
   player, scheduledGames: 0, expectedGames: 0, dates: [], override: false, schedulePending: true,
@@ -42,7 +42,7 @@ export function useWeeklyPlanner() {
   const result = useMemo(() => {
     if (!schedule || request.error || errors.mine.length || errors.opponent.length || !mine.length || !schedule.games.some(g => !['postponed', 'canceled'].includes(g.status)) || draft.state.source.isDemo) return {};
     const currentAnalysis = currentWeeklyAnalysis(mine, opponent, myLineup, opponentLineup, slots);
-    try { return { currentAnalysis, analysis: optimizeWeekly(mine, opponent.filter(p => planner.opponentStarterIds.includes(p.player.id)), activeSlots, slots.filter(s => s.kind === 'bench').length) }; }
+    try { return { currentAnalysis, analysis: optimizeWeekly(mine, opponent.filter(p => planner.opponentStarterIds.includes(p.player.id)), activeSlots) }; }
     catch (e) { return { currentAnalysis, analysisError: e instanceof Error ? e.message : String(e) }; }
   }, [schedule, request.error, errors, mine, opponent, myLineup, opponentLineup, slots, planner.opponentStarterIds, draft.state.source.isDemo, draft.state.settings.rosterSlots]);
   const update = (next: WeeklyPlannerState) => {
@@ -92,7 +92,7 @@ export function useWeeklyPlanner() {
       update(withLineup(planner, side, moveWeeklyPlayer(lineupFor(side), rosterFor(side), slots, planner.ilEligibleIds ?? [], id, targetSlotId)));
     },
     moveOptions(side: WeeklySide, id: string) {
-      return slots.map(slot => {
+      return visibleWeeklySlots(lineupFor(side), slots).map(slot => {
         try { moveWeeklyPlayer(lineupFor(side), rosterFor(side), slots, planner.ilEligibleIds ?? [], id, slot.id); return { slot, allowed: true }; }
         catch (e) { return { slot, allowed: false, reason: e instanceof Error ? e.message : String(e) }; }
       });

@@ -3,6 +3,7 @@ import { useWeeklyPlanner } from '@/hooks/use-weekly';
 import { CAT_LABEL, ConfirmButton, Notice, Panel, btn, errMsg, field, fmt } from '@/components/bits';
 import { IlConfirm, MoveSelect, PlayerSearch, RosterRow, pct } from '@/components/weekly-parts';
 import type { CategoryKey, Player, Position } from '@/lib/draft-types';
+import { visibleWeeklySlots } from '@/lib/weekly-lineup';
 
 const when = (s?: string) => (s ? new Date(s).toLocaleString() : 'unknown');
 const val = (k: CategoryKey, n: number) => (k === 'fg' || k === 'ft' ? pct(n) : fmt(n));
@@ -39,7 +40,7 @@ export default function Weekly() {
       <>
         {w.lineupErrors[side].map((m, i) => <div key={i} className="mt-2"><Notice tone="error" testId={`text-lineup-error-${side}-${i}`}>{m}</Notice></div>)}
         <ul className="mt-2 divide-y">
-          {w.slots.map(sl => {
+          {visibleWeeklySlots(lineup, w.slots).map(sl => {
             const pid = lineup[sl.id], r = pid ? byId.get(pid) : undefined;
             return (
               <li key={sl.id} className="flex gap-2 py-1" data-testid={`slot-${side}-${sl.id}`}>
@@ -139,15 +140,16 @@ export default function Weekly() {
         }>
           <PlayerSearch side="mine" players={players} excluded={taken} onAdd={id => run(() => w.addPlayer('mine', id))} onAddIl={id => run(() => { if (!window.confirm('Confirm this player is actually Yahoo IL eligible in your league? ESPN Out status does not prove it.')) return; w.addPlayer('mine', id, true); })} />
           {w.mine.length === 0 && <p className="mt-3 text-sm text-muted-foreground" data-testid="empty-mine">{planner.myRosterIds.length ? 'Roster rows appear once the schedule loads.' : 'No players yet. Search above or import your draft roster.'}</p>}
-          <p className="mt-2 text-xs text-muted-foreground">Slots mirror your league. IL slots ({(planner.myReserveIds ?? []).length}/{draft.state.settings.injuryReserveSlots}) never score and need Yahoo IL eligibility confirmed by you.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Non-IL roster: {planner.myRosterIds.length - (planner.myReserveIds?.length ?? 0)}/{draft.state.settings.rosterSlots.length}. Bench as many as needed; extra bench spaces appear automatically. IL: {(planner.myReserveIds ?? []).length}/{draft.state.settings.injuryReserveSlots}, with Yahoo eligibility confirmed by you. Bench and IL never score.</p>
           {board('mine')}
         </Panel>
         <Panel title={`Opponent (${oppFilled}/${activeSlots.length} active)`} aside={
           <ConfirmButton testId="button-clear-opponent" label="Clear opponent" confirmLabel="Clear opponent" description="Removes every opponent player and their games overrides." disabled={!planner.opponentRosterIds.length} onConfirm={() => run(w.clearOpponent)} />
         }>
-          {oppIncomplete && <div className="mb-2"><Notice tone="warn" testId="warn-opponent-incomplete">Opponent active roster is incomplete ({oppFilled} of {activeSlots.length}). Their totals are understated, so your edges are overstated.</Notice></div>}
+          {oppIncomplete && <div className="mb-2"><Notice tone="warn" testId="warn-opponent-incomplete">Opponent uses {oppFilled} of {activeSlots.length} active slots. Vacancies can be intentional; confirm this matches their locked lineup. Benched players do not count.</Notice></div>}
           <PlayerSearch side="opponent" players={players} excluded={taken} onAdd={id => run(() => w.addPlayer('opponent', id))} onAddIl={id => run(() => { if (!window.confirm('Confirm this player is actually Yahoo IL eligible in your opponent’s league lineup? ESPN Out status does not prove it.')) return; w.addPlayer('opponent', id, true); })} />
           {w.opponent.length === 0 && <p className="mt-3 text-sm text-muted-foreground" data-testid="empty-opponent">{planner.opponentRosterIds.length ? 'Roster rows appear once the schedule loads.' : 'No opponent players yet. Only Active players count toward their totals.'}</p>}
+          <p className="mt-2 text-xs text-muted-foreground">Non-IL roster: {planner.opponentRosterIds.length - (planner.opponentReserveIds?.length ?? 0)}/{draft.state.settings.rosterSlots.length}. Bench as many as needed. IL: {planner.opponentReserveIds?.length ?? 0}/{draft.state.settings.injuryReserveSlots}.</p>
           {board('opponent')}
         </Panel>
       </div>

@@ -13,11 +13,28 @@ export interface WeeklySlot {
 
 export function weeklySlots(settings: LeagueSettings): WeeklySlot[] {
   const counts: Record<string, number> = {};
-  return [...settings.rosterSlots, ...Array.from({ length: settings.injuryReserveSlots }, () => 'IL' as const)].map(slot => {
+  // BN in the draft layout determines total regular-roster capacity, not how
+  // many regular players may sit out a weekly matchup. All may be benched.
+  const active = settings.rosterSlots.filter(s => s !== 'BN');
+  const bench = Array.from({ length: settings.rosterSlots.length }, () => 'BN' as const);
+  return [...active, ...bench, ...Array.from({ length: settings.injuryReserveSlots }, () => 'IL' as const)].map(slot => {
     const count = counts[slot] = (counts[slot] ?? 0) + 1;
     return { id: `${slot}-${count}`, label: slot === 'UTIL' || slot === 'BN' || slot === 'IL' ? `${slot} ${count}` : slot,
       slot, kind: slot === 'IL' ? 'il' : slot === 'BN' ? 'bench' : 'active' };
   });
+}
+
+/** Keep one free bench destination available as the bench grows, without
+ * displaying twelve empty rows. Existing slot IDs and placements stay intact. */
+export function visibleWeeklySlots(lineup: WeeklyLineup, slots: WeeklySlot[]): WeeklySlot[] {
+  const bench = slots.filter(s => s.kind === 'bench');
+  const firstEmpty = bench.find(s => !lineup[s.id]);
+  return slots.filter(s => s.kind !== 'bench' || !!lineup[s.id] || bench.indexOf(s) < 2 || s.id === firstEmpty?.id);
+}
+
+function nonIlCount(lineup: WeeklyLineup, roster: Player[], slots: WeeklySlot[]) {
+  const reserves = new Set(slots.filter(s => s.kind === 'il').flatMap(s => lineup[s.id] ? [lineup[s.id]!] : []));
+  return roster.filter(p => !reserves.has(p.id)).length;
 }
 
 export function eligibleWeeklySlot(player: Player, slot: WeeklySlot, ilEligible: readonly string[]) {
@@ -55,6 +72,8 @@ export function syncWeeklyLineups(planner: WeeklyPlannerState, mine: WeeklyLineu
 
 export function lineupErrors(lineup: WeeklyLineup, roster: Player[], slots: WeeklySlot[], ilEligible: readonly string[]): string[] {
   const errors: string[] = [], byId = new Map(roster.map(p => [p.id, p]));
+  const limit = slots.filter(s => s.kind === 'bench').length;
+  if (nonIlCount(lineup, roster, slots) > limit) errors.push(`This roster exceeds the ${limit}-player non-IL limit. Benching a player does not free a roster spot.`);
   const assigned = new Set<string>();
   for (const [key, id] of Object.entries(lineup)) {
     const slot = slots.find(s => s.id === key), p = byId.get(id);
@@ -86,6 +105,10 @@ export function moveWeeklyPlayer(lineup: WeeklyLineup, roster: Player[], slots: 
   if (sourceId) delete next[sourceId];
   next[targetId] = id;
   if (displacedId && sourceId) next[sourceId] = displacedId;
+  const limit = slots.filter(s => s.kind === 'bench').length;
+  if (nonIlCount(next, roster, slots) > limit && nonIlCount(next, roster, slots) > nonIlCount(lineup, roster, slots)) {
+    throw new Error(`The ${limit}-player non-IL roster is full. Free a regular roster spot before activating an IL player; benching does not free one.`);
+  }
   return next;
 }
 

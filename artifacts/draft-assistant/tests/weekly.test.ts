@@ -5,7 +5,7 @@ import type { Player, RosterSlot } from '../src/lib/draft-types';
 import { compareWeekly, createMatchup, matchupDates, optimizeWeekly, totalWeeklyStats, validMatchupDates, weeklyPlayers, type WeeklyPlayer } from '../src/lib/weekly-engine';
 import { assignRoster } from '../src/lib/draft-engine';
 import { createInitialState, parseSession } from '../src/lib/projections';
-import { currentWeeklyAnalysis, eligibleWeeklySlot, lineupErrors, moveWeeklyPlayer, optimalWeeklyLineup, prepareWeeklyPlanner, syncWeeklyLineups, weeklySlots } from '../src/lib/weekly-lineup';
+import { currentWeeklyAnalysis, eligibleWeeklySlot, lineupErrors, moveWeeklyPlayer, optimalWeeklyLineup, prepareWeeklyPlanner, syncWeeklyLineups, visibleWeeklySlots, weeklySlots } from '../src/lib/weekly-lineup';
 
 const player = (id: string, overrides: Partial<Player> = {}): Player => ({
   id, name: `Player ${id}`, team: 'BOS', positions: ['PG', 'SG', 'SF', 'PF', 'C'], games: 60,
@@ -112,9 +112,14 @@ test('date defaults respect Eastern weeks, inclusive short/extended windows vali
   assert.throws(() => parseSession(JSON.stringify({ ...state, matchup: { ...state.matchup, opponentRosterIds: [a!.id] } })), /Weekly|weekly|backup/i);
 });
 
-test('weekly slots mirror all 10 active positions, exactly two BN and two separate IL', () => {
-  const slots = weeklySlots(createInitialState().settings);
-  assert.deepEqual(slots.map(s => s.id), ['PG-1', 'SG-1', 'G-1', 'SF-1', 'PF-1', 'F-1', 'C-1', 'UTIL-1', 'UTIL-2', 'UTIL-3', 'BN-1', 'BN-2', 'IL-1', 'IL-2']);
+test('weekly slots keep 10 active positions and two IL, but any of the 12 regular players may be benched', () => {
+  const settings = createInitialState().settings, slots = weeklySlots(settings);
+  assert.deepEqual(slots.filter(s => s.kind === 'active').map(s => s.id), ['PG-1', 'SG-1', 'G-1', 'SF-1', 'PF-1', 'F-1', 'C-1', 'UTIL-1', 'UTIL-2', 'UTIL-3']);
+  assert.equal(slots.filter(s => s.kind === 'bench').length, 12);
+  assert.deepEqual(slots.filter(s => s.kind === 'il').map(s => s.id), ['IL-1', 'IL-2']);
+  assert.equal(settings.rosterSlots.length, 12); // Weekly BN flexibility does not expand the draft roster.
+  assert.equal(visibleWeeklySlots({}, slots).filter(s => s.kind === 'bench').length, 2);
+  assert.deepEqual(visibleWeeklySlots({ 'BN-1': 'a', 'BN-2': 'b' }, slots).filter(s => s.kind === 'bench').map(s => s.id), ['BN-1', 'BN-2', 'BN-3']);
   const pg = player('pg', { positions: ['PG'] }), sf = player('sf', { positions: ['SF'] });
   const fits = (p: Player, id: string) => eligibleWeeklySlot(p, slots.find(s => s.id === id)!, []);
   assert.ok(fits(pg, 'PG-1') && fits(pg, 'G-1') && fits(pg, 'UTIL-3') && fits(pg, 'BN-2'));
@@ -174,14 +179,14 @@ test('manually tweaking either team immediately changes only that team’s activ
   assert.equal(currentWeeklyAnalysis(mine, opponent, il, o2, slots).myTotals.points, 0);
 });
 
-test('constrained optimization fits every player into active, two BN and fixed IL, even with zero-game players', () => {
+test('optimization may bench more than two players, keeps zero-game players off the active lineup and preserves IL', () => {
   const slots = weeklySlots(createInitialState().settings);
   const mine = Array.from({ length: 12 }, (_, i) => row(player(String(i), { points: 5 + i }), i < 4 ? 0 : 3));
   mine.push({ ...row(player('il-a'), 0), reserve: true }, { ...row(player('il-b'), 0), reserve: true });
   const opponent = [row(player('opp'), 4)];
-  const analysis = optimizeWeekly(mine, opponent, slots.filter(s => s.kind === 'active').map(s => s.slot as RosterSlot), 2);
-  assert.equal(analysis.starters.filter(s => s.player).length, 10);
-  assert.equal(analysis.bench.filter(r => !r.reserve).length, 2);
+  const analysis = optimizeWeekly(mine, opponent, slots.filter(s => s.kind === 'active').map(s => s.slot as RosterSlot));
+  assert.ok(analysis.starters.filter(s => s.player).every(s => mine.find(r => r.player.id === s.player!.id)!.expectedGames > 0));
+  assert.ok(analysis.bench.filter(r => !r.reserve).length >= 4);
   assert.equal(analysis.bench.filter(r => r.reserve).length, 2);
   const initial = { 'IL-1': 'il-a', 'IL-2': 'il-b' };
   const applied = optimalWeeklyLineup(analysis, initial, slots);
@@ -196,19 +201,46 @@ test('constrained optimization fits every player into active, two BN and fixed I
   assert.deepEqual(oppLineup, { 'PG-1': 'opp' });
 });
 
-test('an otherwise desirable vacancy cannot create a third bench player', () => {
+test('a beneficial vacancy is allowed even when it benches all three regular players', () => {
   const mine = ['a', 'b', 'c'].map(id => row(player(id, {
     points: 1, rebounds: 1, assists: 1, steals: 1, blocks: 1, threes: 1, fgm: 0, fga: 1, ftm: 0, fta: 1, turnovers: 100,
   }), 1));
   const opponent = [row(player('opp', {
     points: 1e8, rebounds: 1e8, assists: 1e8, steals: 1e8, blocks: 1e8, threes: 1e8, fgm: 1, fga: 1, ftm: 1, fta: 1, turnovers: 1,
   }), 1)];
-  const unrestricted = optimizeWeekly(mine, opponent, ['UTIL']);
-  assert.equal(unrestricted.starters.filter(s => s.player).length, 0);
-  const constrained = optimizeWeekly(mine, opponent, ['UTIL'], 2);
-  assert.equal(constrained.starters.filter(s => s.player).length, 1);
-  assert.equal(constrained.bench.length, 2);
-  assert.throws(() => optimizeWeekly([...mine, row(player('d'))], opponent, ['UTIL'], 2), /No legal lineup/);
+  const analysis = optimizeWeekly(mine, opponent, ['UTIL']);
+  assert.equal(analysis.starters.filter(s => s.player).length, 0);
+  assert.equal(analysis.bench.length, 3);
+  const slots = weeklySlots(createInitialState().settings);
+  const applied = optimalWeeklyLineup(analysis, {}, slots);
+  assert.deepEqual(applied, { 'BN-1': 'a', 'BN-2': 'b', 'BN-3': 'c' });
+  assert.deepEqual(lineupErrors(applied, mine.map(r => r.player), slots, []), []);
+});
+
+test('both teams can bench all 12 non-IL players, but neither benching nor an Out label creates a 13th regular spot', () => {
+  const slots = weeklySlots(createInitialState().settings);
+  for (const side of ['mine', 'opponent']) {
+    const roster = Array.from({ length: 12 }, (_, i) => player(`${side}-${i}`, i === 0 ? { injuryStatus: 'Out' } : {}));
+    const active = slots.filter(s => s.kind === 'active');
+    let lineup = Object.fromEntries(roster.map((p, i) => [active[i]?.id ?? `BN-${i - 9}`, p.id]));
+    for (const p of roster.slice(0, 10)) {
+      const nextBench = visibleWeeklySlots(lineup, slots).find(s => s.kind === 'bench' && !lineup[s.id])!;
+      lineup = moveWeeklyPlayer(lineup, roster, slots, [], p.id, nextBench.id);
+    }
+    assert.equal(Object.keys(lineup).filter(k => k.startsWith('BN-')).length, 12);
+    assert.equal(Object.values(lineup).length, 12);
+    assert.deepEqual(lineupErrors(lineup, roster, slots, []), []);
+    const extra = player(`${side}-extra`, { injuryStatus: 'Out' });
+    assert.match(lineupErrors({ ...lineup, 'PG-1': extra.id }, [...roster, extra], slots, []).join(' '), /12-player non-IL/);
+    const reserves = [player(`${side}-il1`), player(`${side}-il2`)];
+    const withIl = { ...lineup, 'IL-1': reserves[0]!.id, 'IL-2': reserves[1]!.id };
+    const all = [...roster, ...reserves], confirmed = reserves.map(p => p.id);
+    assert.deepEqual(lineupErrors(withIl, all, slots, confirmed), []);
+    assert.throws(() => moveWeeklyPlayer(withIl, all, slots, confirmed, reserves[0]!.id, 'PG-1'), /non-IL roster is full/);
+    assert.throws(() => moveWeeklyPlayer(withIl, all, slots, confirmed, reserves[0]!.id, 'IL-3'), /existing league slot/);
+    const totals = currentWeeklyAnalysis(all.map(p => row(p)), [], withIl, {}, slots).myTotals;
+    assert.equal(totals.games, 0); assert.equal(totals.points, 0);
+  }
 });
 
 test('legacy teams migrate without losing players or opponent starter choices, and explicit slots survive backups', () => {
@@ -226,6 +258,10 @@ test('legacy teams migrate without losing players or opponent starter choices, a
   assert.ok(migrated.ilEligibleIds!.includes(mine[11]!.id));
   state.matchup = migrated;
   assert.deepEqual(parseSession(JSON.stringify(state)).matchup, migrated);
+  const allBench = syncWeeklyLineups(migrated,
+    Object.fromEntries(mine.map((p, i) => [`BN-${i + 1}`, p.id])),
+    Object.fromEntries(opp.map((p, i) => [`BN-${i + 1}`, p.id])), slots);
+  assert.deepEqual(parseSession(JSON.stringify({ ...state, matchup: allBench })).matchup, allBench);
   const duplicate = { ...migrated, myLineup: { 'PG-1': mine[0]!.id, 'UTIL-1': mine[0]!.id } };
   assert.throws(() => parseSession(JSON.stringify({ ...state, matchup: duplicate })), /invalid/);
   const foreign = { ...migrated, myLineup: { 'PG-1': opp[0]!.id } };
