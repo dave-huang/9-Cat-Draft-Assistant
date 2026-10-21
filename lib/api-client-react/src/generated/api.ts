@@ -26,6 +26,8 @@ import type {
   DraftProjectionFeed,
   GetNbaScheduleParams,
   HealthStatus,
+  LineupScreenshotInput,
+  LineupScreenshotReading,
   NbaSchedule,
   YahooAuthorization,
   YahooConsent,
@@ -61,6 +63,94 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getReadLineupScreenshotUrl = () => {
+
+
+
+
+  return `/api/lineup-screenshot`
+}
+
+/**
+ * @summary Read visible Yahoo NBA roster names and slots with Gemini; never saves an image or changes a roster
+ */
+export const readLineupScreenshot = async (lineupScreenshotInput: LineupScreenshotInput, options?: Parameters<typeof customFetch>[1]): Promise<LineupScreenshotReading> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<LineupScreenshotReading>(getReadLineupScreenshotUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(lineupScreenshotInput)
+  }
+);}
+
+
+
+
+
+export const getReadLineupScreenshotMutationKey = () => ['readLineupScreenshot'] as const;
+
+export const getReadLineupScreenshotMutationOptions = <TError = ErrorType<YahooError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof readLineupScreenshot>>, TError,ReadLineupScreenshotMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof readLineupScreenshot>>, TError,ReadLineupScreenshotMutationVariables, TContext> => {
+
+const mutationKey = getReadLineupScreenshotMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof readLineupScreenshot>>, ReadLineupScreenshotMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  readLineupScreenshot(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReadLineupScreenshotMutationResult = NonNullable<Awaited<ReturnType<typeof readLineupScreenshot>>>
+    export type ReadLineupScreenshotMutationBody = BodyType<LineupScreenshotInput>
+    export type ReadLineupScreenshotMutationError = ErrorType<YahooError>
+    export type ReadLineupScreenshotMutationVariables = {data: BodyType<LineupScreenshotInput>}
+
+    /**
+ * @summary Read visible Yahoo NBA roster names and slots with Gemini; never saves an image or changes a roster
+ */
+export const useReadLineupScreenshot = <TError = ErrorType<YahooError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof readLineupScreenshot>>, TError,ReadLineupScreenshotMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof readLineupScreenshot>>,
+        TError,
+        ReadLineupScreenshotMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReadLineupScreenshotMutationOptions(options));
+    }
 
 export const getGetNbaScheduleUrl = (params: GetNbaScheduleParams,) => {
   const normalizedParams = new URLSearchParams();

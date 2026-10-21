@@ -7,6 +7,7 @@ import { assignRoster } from '../src/lib/draft-engine';
 import { createInitialState, parseSession } from '../src/lib/projections';
 import { currentWeeklyAnalysis, eligibleWeeklySlot, lineupErrors, moveWeeklyPlayer, optimalWeeklyLineup, prepareWeeklyPlanner, syncWeeklyLineups, visibleWeeklySlots, weeklySlots } from '../src/lib/weekly-lineup';
 import { weeklyMoveTarget } from '../src/lib/weekly-interaction';
+import { importOpponentLineup, screenshotReviewRows, type LineupImportRow } from '../src/lib/lineup-import';
 
 const player = (id: string, overrides: Partial<Player> = {}): Player => ({
   id, name: `Player ${id}`, team: 'BOS', positions: ['PG', 'SG', 'SF', 'PF', 'C'], games: 60,
@@ -18,6 +19,71 @@ const schedule: NbaSchedule = {
   start: '2026-10-19', end: '2026-10-25', season: '2026-27', fetchedAt: new Date().toISOString(), source: 'https://www.espn.com/nba/schedule',
   games: ['2026-10-20', '2026-10-22', '2026-10-24'].map((date, i) => ({ id: String(i), date, homeTeam: 'BOS', awayTeam: 'NY', status: 'scheduled' })),
 };
+
+test('screenshot matching normalizes accents and suffixes, but never guesses initials or duplicate names', () => {
+  const pool = [player('j', { name: 'Nikola Jokić' }), player('m', { name: 'Michael Porter Jr.' }),
+    player('a', { name: 'Duplicate Name' }), player('b', { name: 'Duplicate Name' })];
+  const slots = weeklySlots(createInitialState().settings);
+  const rows = screenshotReviewRows({ rows: [
+    { name: 'Nikola Jokic', slot: 'C', team: 'DEN', uncertain: false },
+    { name: 'Michael Porter', slot: 'UTIL', team: '', uncertain: false },
+    { name: 'N. Jokic', slot: 'UTIL', team: '', uncertain: true },
+    { name: 'Duplicate Name', slot: 'UNKNOWN', team: '', uncertain: true },
+  ], warnings: [] }, pool, slots);
+  assert.deepEqual(rows.map(r => r.playerId), ['j', 'm', '', '']);
+  assert.deepEqual(rows.map(r => r.slotId), ['C-1', 'UTIL-1', 'UTIL-2', '']);
+});
+
+test('reviewed screenshot replaces only opponent, preserves own roster, dates, retained overrides and IL', () => {
+  const pool = ['mine','keep','depart','new','injured'].map(id => player(id));
+  const slots = weeklySlots(createInitialState().settings);
+  const planner = { start: '2026-10-19', end: '2026-10-25',
+    myRosterIds: ['mine'], myLineup: { 'PG-1': 'mine' }, myReserveIds: [],
+    opponentRosterIds: ['keep','depart'], opponentLineup: { 'C-1': 'keep', 'BN-1': 'depart' },
+    opponentStarterIds: ['keep'], opponentReserveIds: [], ilEligibleIds: [],
+    expectedGames: { mine: 2, keep: 1, depart: 0 } };
+  const rows: LineupImportRow[] = [
+    { name: 'keep', team: '', uncertain: false, playerId: 'keep', slotId: 'C-1', skip: false },
+    { name: 'new', team: '', uncertain: false, playerId: 'new', slotId: 'BN-3', skip: false },
+    { name: 'injured', team: '', uncertain: false, playerId: 'injured', slotId: 'IL-1', skip: false },
+    { name: 'unreadable', team: '', uncertain: true, playerId: '', slotId: '', skip: true },
+  ];
+  const before = structuredClone(planner);
+  assert.throws(() => importOpponentLineup(planner, rows, pool, slots, false), /Confirm/);
+  const next = importOpponentLineup(planner, rows, pool, slots, true);
+  assert.deepEqual(next.myRosterIds, ['mine']);
+  assert.deepEqual(next.myLineup, planner.myLineup);
+  assert.deepEqual(next.opponentRosterIds, ['keep','new','injured']);
+  assert.deepEqual(next.opponentStarterIds, ['keep']);
+  assert.deepEqual(next.opponentReserveIds, ['injured']);
+  assert.deepEqual(next.expectedGames, { mine: 2, keep: 1 });
+  assert.deepEqual(next.ilEligibleIds, ['injured']);
+  assert.equal(next.start, planner.start); assert.equal(next.end, planner.end);
+  assert.deepEqual(planner, before);
+  const initial = createInitialState();
+  const restored = parseSession(JSON.stringify({ ...initial, players: pool, matchup: next }));
+  assert.deepEqual(restored.matchup?.opponentLineup, next.opponentLineup);
+});
+
+test('screenshot confirmation rejects duplicates, unknowns, own players, bad positions and capacity without mutation', () => {
+  const pool = Array.from({ length: 15 }, (_, i) => player(String(i), { positions: ['C'] }));
+  const slots = weeklySlots(createInitialState().settings);
+  const planner = { start: '2026-10-19', end: '2026-10-25', myRosterIds: ['14'], myLineup: { 'C-1': '14' },
+    opponentRosterIds: [], opponentLineup: {}, opponentStarterIds: [], expectedGames: {} };
+  const row = (playerId: string, slotId: string): LineupImportRow => ({ name: playerId, team: '', uncertain: false, playerId, slotId, skip: false });
+  const before = structuredClone(planner);
+  for (const rows of [
+    [], [row('', 'C-1')], [row('14', 'C-1')], [row('0', '')], [row('0','PG-1')],
+    [row('0','C-1'),row('0','BN-1')], [row('0','C-1'),row('1','C-1')],
+    Array.from({length: 13}, (_,i) => row(String(i), i === 0 ? 'C-1' : `BN-${i}`)),
+    [row('0','IL-1'), row('1','IL-2'), row('2','IL-3')],
+  ]) assert.throws(() => importOpponentLineup(planner, rows, pool, slots, true));
+  assert.deepEqual(planner, before);
+  // Any/all 12 regular players can remain on the bench.
+  const next = importOpponentLineup(planner, Array.from({length:12}, (_,i) => row(String(i),`BN-${i+1}`)), pool, slots, false);
+  assert.equal(next.opponentRosterIds.length, 12);
+  assert.deepEqual(next.opponentStarterIds, []);
+});
 
 test('weekly counts use actual expected active games, not season GP; shooting ratios weight total attempts and games', () => {
   const a = row(player('a', { games: 40, points: 10, fgm: 5, fga: 10, ftm: 2, fta: 2 }), 3);

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useWeeklyPlanner } from '@/hooks/use-weekly';
 import { CAT_LABEL, ConfirmButton, Notice, Panel, btn, errMsg, field, fmt } from '@/components/bits';
 import { PlayerSearch, pct } from '@/components/weekly-parts';
+import { OpponentScreenshotImport } from '@/components/opponent-screenshot-import';
 import { LineupBoard } from '@/components/weekly-lineup-board';
 import { useLineupInteraction } from '@/hooks/use-lineup-interaction';
 import type { CategoryKey, Player, Position } from '@/lib/draft-types';
@@ -128,7 +129,10 @@ export default function Weekly() {
           {board('mine')}
         </Panel>
         <Panel title={`Opponent · ${planner.opponentRosterIds.length} players`} className="[&>div]:!p-3 [&>header]:!px-3 [&>header]:!py-2" aside={
-          <ConfirmButton testId="button-clear-opponent" label="Clear opponent" confirmLabel="Clear opponent" description="Removes every opponent player and their games overrides." disabled={!planner.opponentRosterIds.length} onConfirm={() => run(w.clearOpponent)} />
+          <div className="flex items-center gap-1.5">
+            <OpponentScreenshotImport w={w} onImported={() => ix.complete('Opponent lineup imported. Projections updated.')} />
+            <ConfirmButton testId="button-clear-opponent" label="Clear opponent" confirmLabel="Clear opponent" description="Removes every opponent player and their games overrides." disabled={!planner.opponentRosterIds.length} onConfirm={() => run(w.clearOpponent)} />
+          </div>
         }>
           <PlayerSearch side="opponent" players={players} excluded={taken} onAdd={id => run(() => w.addPlayer('opponent', id))} onAddIl={id => run(() => { if (!window.confirm('Confirm this player is actually Yahoo IL eligible in your opponent’s league lineup? ESPN Out status does not prove it.')) return; w.addPlayer('opponent', id, true); })} />
           {w.opponent.length === 0 && <p className="mt-2 text-xs text-muted-foreground" data-testid="empty-opponent">Search to add your opponent’s players.</p>}

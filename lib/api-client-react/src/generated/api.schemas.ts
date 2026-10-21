@@ -5,6 +5,63 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type LineupScreenshotInputMimeType = typeof LineupScreenshotInputMimeType[keyof typeof LineupScreenshotInputMimeType];
+
+
+export const LineupScreenshotInputMimeType = {
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface LineupScreenshotInput {
+  mimeType: LineupScreenshotInputMimeType;
+  /**
+     * @minLength 16
+     * @maxLength 5592408
+     */
+  imageBase64: string;
+}
+
+export type LineupScreenshotRowSlot = typeof LineupScreenshotRowSlot[keyof typeof LineupScreenshotRowSlot];
+
+
+export const LineupScreenshotRowSlot = {
+  PG: 'PG',
+  SG: 'SG',
+  G: 'G',
+  SF: 'SF',
+  PF: 'PF',
+  F: 'F',
+  C: 'C',
+  UTIL: 'UTIL',
+  BN: 'BN',
+  IL: 'IL',
+  UNKNOWN: 'UNKNOWN',
+} as const;
+
+export interface LineupScreenshotRow {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+  slot: LineupScreenshotRowSlot;
+  /** @maxLength 20 */
+  team: string;
+  uncertain: boolean;
+}
+
+export interface LineupScreenshotReading {
+  /** @maxItems 18 */
+  rows: LineupScreenshotRow[];
+  /**
+     * @maxItems 5
+     * @items.maxLength 300
+     */
+  warnings: string[];
+}
+
 export type NbaGameStatus = typeof NbaGameStatus[keyof typeof NbaGameStatus];
 
 

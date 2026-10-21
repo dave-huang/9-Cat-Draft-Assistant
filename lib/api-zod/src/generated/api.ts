@@ -9,6 +9,42 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Read visible Yahoo NBA roster names and slots with Gemini; never saves an image or changes a roster
+ */
+export const readLineupScreenshotBodyImageBase64Min = 16;
+export const readLineupScreenshotBodyImageBase64Max = 5592408;
+
+
+
+export const ReadLineupScreenshotBody = zod.object({
+  "mimeType": zod.enum(['image/png', 'image/jpeg', 'image/webp']),
+  "imageBase64": zod.string().min(readLineupScreenshotBodyImageBase64Min).max(readLineupScreenshotBodyImageBase64Max)
+})
+
+export const readLineupScreenshotResponseRowsItemNameMax = 100;
+
+export const readLineupScreenshotResponseRowsItemTeamMax = 20;
+
+export const readLineupScreenshotResponseRowsMax = 18;
+
+export const readLineupScreenshotResponseWarningsItemMax = 300;
+
+export const readLineupScreenshotResponseWarningsMax = 5;
+
+
+
+export const ReadLineupScreenshotResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "name": zod.string().min(1).max(readLineupScreenshotResponseRowsItemNameMax),
+  "slot": zod.enum(['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL', 'BN', 'IL', 'UNKNOWN']),
+  "team": zod.string().max(readLineupScreenshotResponseRowsItemTeamMax),
+  "uncertain": zod.boolean()
+})).max(readLineupScreenshotResponseRowsMax),
+  "warnings": zod.array(zod.string().max(readLineupScreenshotResponseWarningsItemMax)).max(readLineupScreenshotResponseWarningsMax)
+})
+
+
+/**
  * @summary Complete NBA regular-season schedule for an inclusive matchup date window
  */
 export const GetNbaScheduleQueryParams = zod.object({

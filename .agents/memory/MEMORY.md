@@ -2,3 +2,4 @@
 - [Projection access checks](projection-access-checks.md) — verify current row limits and export permissions; public filters and older “free” guides can be misleading.
 - [League roster](league-roster.md) — 12 non-IL players plus 2 IL; weekly benching is not capped at two. Keep draft capacity unchanged and mock restarts repeatable.
 - [Date-only API contracts](api-date-only-contracts.md) — Orval Zod date coercion can turn calendar dates into full ISO timestamps despite passing type checks.
+- [Screenshot provider](screenshot-provider.md) — the user explicitly chose Gemini with their own API key for lineup screenshot recognition.

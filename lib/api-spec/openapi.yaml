@@ -11,6 +11,42 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /lineup-screenshot:
+    post:
+      operationId: readLineupScreenshot
+      tags: [draft-data]
+      summary: Read visible Yahoo NBA roster names and slots with Gemini; never saves an image or changes a roster
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LineupScreenshotInput" }
+      responses:
+        "200":
+          description: Visible rows for user review, not an authoritative or complete roster
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LineupScreenshotReading" }
+        "400":
+          description: Invalid image or no readable lineup
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/YahooError" }
+        "413":
+          description: Image too large
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/YahooError" }
+        "429":
+          description: Screenshot recognition rate or concurrency limit
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/YahooError" }
+        "503":
+          description: Gemini unavailable, not configured or unreadable response; saved rosters unchanged
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/YahooError" }
   /draft-data/schedule:
     get:
       operationId: getNbaSchedule
@@ -254,6 +290,35 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    LineupScreenshotInput:
+      type: object
+      required: [mimeType, imageBase64]
+      additionalProperties: false
+      properties:
+        mimeType: { type: string, enum: [image/png, image/jpeg, image/webp] }
+        imageBase64: { type: string, minLength: 16, maxLength: 5592408 }
+    LineupScreenshotRow:
+      type: object
+      additionalProperties: false
+      required: [name, slot, team, uncertain]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        slot: { type: string, enum: [PG, SG, G, SF, PF, F, C, UTIL, BN, IL, UNKNOWN] }
+        team: { type: string, maxLength: 20 }
+        uncertain: { type: boolean }
+    LineupScreenshotReading:
+      type: object
+      additionalProperties: false
+      required: [rows, warnings]
+      properties:
+        rows:
+          type: array
+          maxItems: 18
+          items: { $ref: "#/components/schemas/LineupScreenshotRow" }
+        warnings:
+          type: array
+          maxItems: 5
+          items: { type: string, maxLength: 300 }
     NbaGame:
       type: object
       required: [id, date, homeTeam, awayTeam, status]

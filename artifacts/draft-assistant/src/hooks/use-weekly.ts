@@ -6,6 +6,7 @@ import { createMatchup, optimizeWeekly, validMatchupDates, weeklyPlayers } from 
 import type { Player, WeeklyPlannerState } from '@/lib/draft-types';
 import type { WeeklyPlayer } from '@/lib/weekly-engine';
 import { currentWeeklyAnalysis, eligibleWeeklySlot, lineupErrors, moveWeeklyPlayer, optimalWeeklyLineup, prepareWeeklyPlanner, syncWeeklyLineups, visibleWeeklySlots, weeklySlots, type WeeklyLineup, type WeeklySide } from '@/lib/weekly-lineup';
+import { importOpponentLineup, type LineupImportRow } from '@/lib/lineup-import';
 
 const pendingRows = (players: Player[]): WeeklyPlayer[] => players.map(player => ({
   player, scheduledGames: 0, expectedGames: 0, dates: [], override: false, schedulePending: true,
@@ -64,6 +65,10 @@ export function useWeeklyPlanner() {
   const rosterFor = (side: WeeklySide) => (side === 'mine' ? mine : opponent).map(r => r.player);
   const lineupFor = (side: WeeklySide) => side === 'mine' ? myLineup : opponentLineup;
   const actions = {
+    importOpponent(rows: LineupImportRow[], ilConfirmed: boolean) {
+      if (draft.state.source.isDemo) throw new Error('Load real season projections before importing a lineup.');
+      update(importOpponentLineup(planner, rows, draft.state.players, slots, ilConfirmed));
+    },
     setDates(start: string, end: string) {
       if (!validMatchupDates(start, end)) throw new Error('Choose valid inclusive dates spanning 1–14 days, matching your Yahoo matchup.');
       update({ ...planner, start, end, expectedGames: {} });
