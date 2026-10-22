@@ -4,3 +4,4 @@
 - [Date-only API contracts](api-date-only-contracts.md) — Orval Zod date coercion can turn calendar dates into full ISO timestamps despite passing type checks.
 - [Screenshot provider](screenshot-provider.md) — the user explicitly chose Gemini with their own API key for lineup screenshot recognition.
 - [Weekly stats choice](weekly-stats-choice.md) — projections remain the default; the user explicitly chooses when to use current-season averages.
+- [Trade outlook](trade-outlook.md) — reasonable bilateral offers and season-long no-punt improvement, not just winning the next matchup.

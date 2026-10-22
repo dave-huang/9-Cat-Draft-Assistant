@@ -163,6 +163,21 @@ export const matchupSchema = z.object({
     Object.values(m.myLineup ?? {}).every(id => m.myRosterIds.includes(id)) &&
     Object.values(m.opponentLineup ?? {}).every(id => m.opponentRosterIds.includes(id));
 }, { message: 'Weekly roster identities must be unique and opponent starters must belong to that roster.' });
+export const tradeWorkspaceSchema = z.object({
+  partners: z.array(z.object({
+    id: z.string().min(1).max(100),
+    name: z.string().trim().min(1).max(80),
+    rosterIds: z.array(z.string()).max(18),
+    reserveIds: z.array(z.string()).max(10),
+  }).refine(p => new Set(p.rosterIds).size === p.rosterIds.length &&
+    new Set(p.reserveIds).size === p.reserveIds.length && p.reserveIds.every(id => p.rosterIds.includes(id)),
+  { message: 'Partner players must be unique and reserves must belong to that team.' })).max(19),
+  lockedPlayerIds: z.array(z.string()).max(18),
+  packageSize: z.enum(['one', 'two', 'both']),
+}).refine(t => new Set(t.partners.map(p => p.id)).size === t.partners.length &&
+  new Set(t.lockedPlayerIds).size === t.lockedPlayerIds.length &&
+  new Set(t.partners.flatMap(p => p.rosterIds)).size === t.partners.flatMap(p => p.rosterIds).length,
+{ message: 'A player can belong to only one saved trade partner.' });
 const stateSchema = z.object({
   version: z.literal(1),
   settings: settingsSchema,
@@ -179,6 +194,7 @@ const stateSchema = z.object({
   })).max(3000),
   shortlist: z.array(z.string()).max(3000),
   matchup: matchupSchema.optional(),
+  trades: tradeWorkspaceSchema.optional(),
   eligibilityFeed: z.object({
     season: z.string(), source: z.string(), fetchedAt: z.string(), checkedAt: z.string(),
     totalPlayers: z.number().int().nonnegative().max(3000),
@@ -218,5 +234,6 @@ export function parseSession(json: string): DraftState {
   if (mine.length > state.settings.rosterSlots.length) throw new Error('The backup has more of your picks than roster spots.');
   if (state.shortlist.some(id => !ids.has(id))) throw new Error('The backup shortlist contains a missing player.');
   if (state.matchup && [...state.matchup.myRosterIds, ...state.matchup.opponentRosterIds].some(id => !ids.has(id))) throw new Error('The weekly matchup contains a missing player.');
+  if (state.trades && [...state.trades.partners.flatMap(p => p.rosterIds), ...state.trades.lockedPlayerIds].some(id => !ids.has(id))) throw new Error('The trade workspace contains a missing player.');
   return state;
 }

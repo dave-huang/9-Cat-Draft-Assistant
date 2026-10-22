@@ -91,6 +91,7 @@ export interface DraftState {
   picks: Pick[];
   shortlist: string[];
   matchup?: WeeklyPlannerState;
+  trades?: TradeWorkspace;
   eligibilityFeed?: {
     season: string;
     source: string;
@@ -107,6 +108,17 @@ export interface DraftState {
     matchedPlayers: number;
     totalReports: number;
   };
+}
+export interface TradePartner {
+  id: string;
+  name: string;
+  rosterIds: string[];
+  reserveIds: string[];
+}
+export interface TradeWorkspace {
+  partners: TradePartner[];
+  lockedPlayerIds: string[];
+  packageSize: 'one' | 'two' | 'both';
 }
 export interface Recommendation {
   player: Player;

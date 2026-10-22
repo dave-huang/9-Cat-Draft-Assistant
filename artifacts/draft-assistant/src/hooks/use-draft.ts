@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { analyzeDraft, assignRoster, teamAtPick } from '@/lib/draft-engine';
-import { createInitialState, matchupSchema, parseProjections, parseSession, playerSchema, settingsSchema } from '@/lib/projections';
+import { createInitialState, matchupSchema, parseProjections, parseSession, playerSchema, settingsSchema, tradeWorkspaceSchema } from '@/lib/projections';
 import { migrateLeagueRoster } from '@/lib/league-roster';
 import { withYahooEligibility } from '@/lib/eligibility';
 import type { DraftEligibilityFeed } from '@workspace/api-client-react';
@@ -96,7 +96,7 @@ const actions = {
     commit({ ...state, settings: result.data });
   },
   importProjections(csv: string, label: string, season: string) {
-    if (state.picks.length) throw new Error('Importing replaces the player pool. Export a backup and reset your draft before importing.');
+    if (state.picks.length || state.matchup?.myRosterIds.length || state.matchup?.opponentRosterIds.length || state.trades?.partners.some(p => p.rosterIds.length)) throw new Error('Importing replaces the player pool. Export a backup and clear saved draft, weekly and trade rosters before importing.');
     if (!label.trim() || !season.trim()) throw new Error('Enter the projection source and season.');
     if (label.length > 200 || season.length > 100) throw new Error('Please shorten the source label or season.');
     const players = parseProjections(csv);
@@ -107,8 +107,9 @@ const actions = {
     const parsed = players.map(p => playerSchema.parse(p));
     if (new Set(parsed.map(p => p.id)).size !== parsed.length) throw new Error('The projection feed contains duplicate players.');
     if (state.picks.length && state.source.isDemo) throw new Error('Your practice draft uses demo IDs. Export it, then reset picks before loading current projections.');
-    if (state.source.isDemo && ((state.matchup?.myRosterIds.length ?? 0) || (state.matchup?.opponentRosterIds.length ?? 0))) throw new Error('Your weekly roster contains demo players. Export a backup and remove those weekly players before loading real projections.');
-    if (state.picks.length && state.source.season !== source.season) throw new Error('The feed is for a different season. Export a backup and reset before replacing the season.');
+    const savedRosterIds = [...(state.matchup?.myRosterIds ?? []), ...(state.matchup?.opponentRosterIds ?? []), ...(state.trades?.partners.flatMap(p => p.rosterIds) ?? [])];
+    if (state.source.isDemo && savedRosterIds.length) throw new Error('Saved rosters contain demo players. Export a backup and remove them before loading real projections.');
+    if ((state.picks.length || savedRosterIds.length) && state.source.season !== source.season) throw new Error('The feed is for a different season. Export a backup and clear saved rosters before replacing the season.');
     // Refreshes preserve picks, local identities and saved players missing from
     // a new forecast (e.g. a newly injured player with no season projection).
     const normalize = (name: string) => name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -126,7 +127,7 @@ const actions = {
     });
     const ids = new Set(merged.map(p => p.id));
     if (ids.size !== merged.length) throw new Error('Player identity matching was ambiguous. Existing draft was kept.');
-    const weeklyIds = new Set([...(state.matchup?.myRosterIds ?? []), ...(state.matchup?.opponentRosterIds ?? [])]);
+    const weeklyIds = new Set([...savedRosterIds, ...(state.trades?.lockedPlayerIds ?? [])]);
     const missing = state.players.filter(p => !ids.has(p.id) && (analysis.draftedIds.has(p.id) || state.shortlist.includes(p.id) || weeklyIds.has(p.id))).map(p => ({ ...p, projectionUnavailable: true }));
     commit({ ...state, players: [...merged, ...missing], source,
       eligibilityFeed: state.source.season === source.season ? state.eligibilityFeed : undefined,
@@ -141,6 +142,21 @@ const actions = {
     const ids = new Set(state.players.map(p => p.id));
     if ([...result.data.myRosterIds, ...result.data.opponentRosterIds].some(id => !ids.has(id))) throw new Error('A selected player is missing from the projection pool.');
     commit({ ...state, matchup: result.data });
+  },
+  updateTrades(input: unknown) {
+    const parsed = tradeWorkspaceSchema.safeParse(input);
+    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'Invalid trade workspace.');
+    const next = parsed.data;
+    if (next.partners.length >= state.settings.teamCount) throw new Error('There cannot be more trade partners than other teams in your league.');
+    const own = new Set(state.matchup?.myRosterIds ?? state.picks.filter(p => p.team === state.settings.myPosition).map(p => p.playerId));
+    const ids = new Set(state.players.map(p => p.id));
+    for (const team of next.partners) {
+      if (team.rosterIds.some(id => own.has(id) || !ids.has(id))) throw new Error('A partner cannot own your player or a player missing from the pool.');
+      if (team.rosterIds.length - team.reserveIds.length > state.settings.rosterSlots.length ||
+          team.reserveIds.length > state.settings.injuryReserveSlots) throw new Error('A partner is limited to the league’s regular roster and IL capacity.');
+    }
+    if (next.lockedPlayerIds.some(id => !ids.has(id))) throw new Error('An untouchable player is missing from the pool.');
+    commit({ ...state, trades: next });
   },
   applyInjuries(reports: { name: string; status: string; note: string; updatedAt?: string; source: string; returnDate?: string }[], checkedAt: string, reportUpdatedAt?: string) {
     if (state.source.isDemo) throw new Error('Load current projections before checking injuries. Demo identities are not verified.');

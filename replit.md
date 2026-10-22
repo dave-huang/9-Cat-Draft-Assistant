@@ -17,6 +17,7 @@ A personal draft and weekly-lineup companion for Yahoo Fantasy Basketball head-t
 - `pnpm --filter @workspace/api-server run test:eligibility` — anonymous public Yahoo discovery, actual eligibility, season/format checks, complete pagination, caching and denied-access failures
 - `pnpm --filter @workspace/draft-assistant run test:draft` — nine-category scoring, manual pick correction, eligibility overrides, refresh-safe identities and draft persistence
 - `pnpm --filter @workspace/draft-assistant run test:weekly` — weekly game-weighted totals, shooting ratios, availability, exhaustive lineup selection and weekly backups
+- `pnpm --filter @workspace/draft-assistant run test:trades` — bilateral trade fit, fair-value checks, ownership, capacity, injuries, IL, locks, backups and refresh safety
 - `pnpm --filter @workspace/api-server run test:schedule` — inclusive date windows, Eastern game dates, season/status validation, complete schedule retrieval and cache behavior
 - `pnpm --filter @workspace/api-server run test:screenshot` — image bounds, Gemini request contract, safe failures and structured response validation
 - `pnpm --filter @workspace/api-server run test:actuals` — current-season actual totals, real GP, strict split selection, missing-data handling and cache behavior
@@ -54,6 +55,8 @@ A personal draft and weekly-lineup companion for Yahoo Fantasy Basketball head-t
 - Keep manually selected weekly slots separate from the optimizer's recommendation. **Why:** the user wants to tweak both lineups, see projections for those exact starters, and explicitly apply the optimal own lineup with a button; recommendations must not silently overwrite edits.
 
 ## Product
+
+The `/trades` workspace reads the current Weekly own roster (draft picks only when no Weekly planner exists) and saves separate named partner rosters. Copying a Weekly opponent is a snapshot, not a link or modification to Weekly. Trade partners, confirmed reserve assignments, package filter and untouchables are browser-local and included in normal JSON backups. Projection refresh preserves missing partner identities with a warning instead of deleting roster members. Changing rosters or player inputs hides prior suggestions until a new scan. Trade proposals can be copied but are never sent or applied. Importing a replacement CSV is blocked while saved rosters would be orphaned; current-feed refresh remains supported.
 
 Manual Mine/Taken tracking (with optional legacy snake mode), roster-aware nine-category recommendations, positional filters, shortlist, undo and correction of prior picks, league settings, current ESPN season projections, separately refreshed injury reports, CSV projection imports, and browser persistence with JSON backup/restore. This app neither submits Yahoo picks nor promises calibrated win odds or mathematically optimal picks. Yahoo syncing is out of the current product scope.
 
