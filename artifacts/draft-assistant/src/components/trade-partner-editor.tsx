@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { btn, ConfirmButton, errMsg, field } from '@/components/bits';
 import type { TradesHook } from '@/hooks/use-trades';
 import type { Player } from '@/lib/draft-types';
+import { TradeScreenshotImport } from './trade-screenshot-import';
 
 export function TradePartnerEditor({ t, partnerId, onError }: { t: TradesHook; partnerId: string; onError: (m: string) => void }) {
   const partner = t.partners.find(p => p.id === partnerId);
@@ -32,12 +33,13 @@ export function TradePartnerEditor({ t, partnerId, onError }: { t: TradesHook; p
         {regular < 10 && <span className="text-destructive">Under 10 non-IL players: scan will skip this team. 12 recommended.</span>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <TradeScreenshotImport t={t} partnerId={partner.id} onImported={() => { onError(''); setSearch(''); }} />
         {partner.players.length ? (
           <ConfirmButton testId="button-trade-copy-opponent" danger={false} disabled={!hasOpp} label="Replace with current Weekly opponent" confirmLabel="Replace roster" description="This replaces the saved roster and IL list for this team. Weekly is not changed." onConfirm={copyOpp} />
         ) : (
           <button type="button" className={btn.ghost} disabled={!hasOpp} onClick={copyOpp} data-testid="button-trade-copy-opponent">Copy current Weekly opponent</button>
         )}
-        {!hasOpp && <span className="text-xs text-muted-foreground">No Weekly opponent saved. Use search.</span>}
+        {!hasOpp && <span className="text-xs text-muted-foreground">Paste a Yahoo screenshot or use player search.</span>}
       </div>
       <ul className="divide-y rounded-md border" data-testid="list-trade-partner-roster">
         {partner.players.map(p => {
@@ -52,7 +54,7 @@ export function TradePartnerEditor({ t, partnerId, onError }: { t: TradesHook; p
             </li>
           );
         })}
-        {!partner.players.length && <li className="px-2.5 py-3 text-sm text-muted-foreground">No players yet. Search below or copy your Weekly opponent.</li>}
+        {!partner.players.length && <li className="px-2.5 py-3 text-sm text-muted-foreground">No players yet. Import a screenshot, search below or copy your Weekly opponent.</li>}
       </ul>
       {ilFor && (
         <div className="rounded-md border border-[hsl(40_80%_40%)]/40 bg-[hsl(44_90%_60%)]/20 p-3 text-sm" data-testid="panel-trade-il-confirm">

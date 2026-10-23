@@ -4,6 +4,8 @@ import { buildTradeModel, recommendTrades, tradeCandidate, tradePitch, type Trad
 import { createInitialState, parseSession } from '../src/lib/projections';
 import { createMatchup } from '../src/lib/weekly-engine';
 import type { DraftState, Player } from '../src/lib/draft-types';
+import { importTradePartnerRoster, tradeScreenshotReviewRows } from '../src/lib/trade-roster-import';
+import type { LineupImportRow } from '../src/lib/lineup-import';
 
 const base = (id: string): Player => ({
   id, name: `Synthetic ${id}`, team: 'BOS', positions: ['PG', 'SG', 'SF', 'PF', 'C'],
@@ -122,6 +124,64 @@ function session(): DraftState {
   return state;
 }
 
+function importRow(id: string, slotId = 'regular'): LineupImportRow {
+  return { name: `Synthetic ${id}`, team: 'BOS', uncertain: false, playerId: id, slotId, skip: false };
+}
+
+test('trade screenshot review matches full names conservatively and groups starters and bench as regular', () => {
+  const state = session();
+  const rows = tradeScreenshotReviewRows([
+    { name: 'Synthetic b0', slot: 'PG', team: 'BOS', uncertain: false },
+    { name: 'Synthetic b1', slot: 'BN', team: 'BOS', uncertain: false },
+    { name: 'Synthetic b2', slot: 'IL', team: 'BOS', uncertain: false },
+    { name: 'S. b3', slot: 'UNKNOWN', team: '', uncertain: true },
+  ], state.players);
+  assert.deepEqual(rows.map(r => r.playerId), ['b0', 'b1', 'b2', '']);
+  assert.deepEqual(rows.map(r => r.slotId), ['regular', 'regular', 'il', '']);
+  assert.equal(rows[3]!.uncertain, true);
+  const ambiguous = [...state.players, { ...base('another'), name: 'Synthetic b0' }];
+  assert.equal(tradeScreenshotReviewRows([{ name: 'Synthetic b0', slot: 'PG', team: '', uncertain: false }], ambiguous)[0]!.playerId, '');
+});
+
+test('trade screenshot import replaces only selected partner, preserves everything else, accepts 12 regular plus 2 confirmed IL', () => {
+  const state = session();
+  state.trades!.partners.push({ id: 'second', name: 'Another team', rosterIds: ['c20'], reserveIds: [] });
+  const before = JSON.stringify(state);
+  const rows = [...Array.from({ length: 12 }, (_, i) => importRow(`b${i}`)), importRow('c0', 'il'), importRow('c1', 'il')];
+  const next = importTradePartnerRoster(state, 'team-b', rows, true);
+  assert.equal(JSON.stringify(state), before);
+  assert.equal(next.partners[0]!.rosterIds.length, 14);
+  assert.deepEqual(next.partners[0]!.reserveIds, ['c0', 'c1']);
+  assert.deepEqual(next.partners[1], state.trades!.partners[1]);
+  assert.deepEqual(next.lockedPlayerIds, state.trades!.lockedPlayerIds);
+  assert.equal(next.packageSize, state.trades!.packageSize);
+  assert.deepEqual(parseSession(JSON.stringify({ ...state, trades: next })).trades, next);
+  const fewer = importTradePartnerRoster(state, 'team-b', [importRow('b0'), { ...importRow('b1'), skip: true }], false);
+  assert.deepEqual(fewer.partners[0]!.rosterIds, ['b0']);
+});
+
+test('trade screenshot rejects unresolved/duplicate/owned players, missing partner, bad designation and excess capacity atomically', () => {
+  const state = session();
+  state.trades!.partners.push({ id: 'second', name: 'Another team', rosterIds: ['c20'], reserveIds: [] });
+  const before = JSON.stringify(state);
+  assert.throws(() => importTradePartnerRoster(state, 'gone', [importRow('b0')], false), /no longer exists/);
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', [], false), /at least one/);
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', [importRow('missing')], false), /Match/);
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', [importRow('b0'), importRow('b0')], false), /more than once/);
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', [importRow('a0')], false), /your team/);
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', [importRow('c20')], false), /Another team/);
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', [importRow('b0', '')], false), /Choose Regular or IL/);
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', [importRow('b0', 'il')], false), /Confirm/);
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', ['b0', 'b1', 'b2'].map(id => importRow(id, 'il')), true), /IL limit/);
+  const full = [...Array.from({ length: 12 }, (_, i) => importRow(`b${i}`)), importRow('c0')];
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', full, false), /non-IL limit/);
+  // Out is never treated as an automatic IL designation.
+  state.players.find(p => p.id === 'c0')!.injuryStatus = 'Out';
+  assert.throws(() => importTradePartnerRoster(state, 'team-b', full, false), /non-IL limit/);
+  state.players.find(p => p.id === 'c0')!.injuryStatus = undefined;
+  assert.equal(JSON.stringify(state), before);
+});
+
 test('trade rosters and locks survive JSON backup, without rewriting Weekly or legacy sessions', () => {
   const state = session(), restored = parseSession(JSON.stringify(state));
   assert.deepEqual(restored.trades, state.trades);
@@ -159,4 +219,21 @@ test('store validates ownership/capacity, preserves partners through feed refres
   assert.equal(JSON.stringify(getDraftSnapshot().state.matchup), priorWeekly);
   assert.throws(() => draftActions.importProjections('', 'new', '2026-27'), /clear saved/);
   assert.deepEqual(parseSession(saved.get('nine-cat-draft-v1')!).trades, workspace);
+  // The action uses current store ownership, not stale state from opening the dialog.
+  const current = structuredClone(getDraftSnapshot().state.trades!);
+  current.partners.push({ id: 'second', name: 'Second team', rosterIds: ['c1'], reserveIds: [] });
+  draftActions.updateTrades(current);
+  const beforeInvalid = JSON.stringify(getDraftSnapshot().state);
+  assert.throws(() => draftActions.importTradePartner('team-b', [importRow('c1')], false), /Second team/);
+  assert.equal(JSON.stringify(getDraftSnapshot().state), beforeInvalid);
+  draftActions.importTradePartner('team-b', [importRow('b0'), importRow('c0', 'il')], true);
+  const imported = getDraftSnapshot().state;
+  assert.equal(JSON.stringify(imported.matchup), priorWeekly);
+  assert.deepEqual(imported.trades!.partners[0]!.rosterIds, ['b0', 'c0']);
+  assert.deepEqual(imported.trades!.partners[0]!.reserveIds, ['c0']);
+  assert.deepEqual(imported.trades!.partners[1], current.partners[1]);
+  assert.deepEqual(imported.trades!.lockedPlayerIds, ['a1']);
+  assert.deepEqual(imported.picks, state.picks);
+  assert.deepEqual(imported.shortlist, state.shortlist);
+  assert.deepEqual(parseSession(saved.get('nine-cat-draft-v1')!).trades, imported.trades);
 });

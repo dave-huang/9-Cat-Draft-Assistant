@@ -3,6 +3,7 @@ import { useDraft } from './use-draft';
 import { useDraftData } from './use-draft-data';
 import { recommendTrades, type TradeScan } from '@/lib/trade-engine';
 import type { TradePartner, TradeWorkspace } from '@/lib/draft-types';
+import type { LineupImportRow } from '@/lib/lineup-import';
 
 const EMPTY: TradeWorkspace = { partners: [], lockedPlayerIds: [], packageSize: 'both' };
 
@@ -54,6 +55,9 @@ export function useTrades() {
       const opponent = state.matchup;
       if (!opponent?.opponentRosterIds.length) throw new Error('Add your opponent on Weekly first, or use player search here.');
       changePartner(partnerId, p => ({ ...p, rosterIds: [...opponent.opponentRosterIds], reserveIds: [...(opponent.opponentReserveIds ?? [])] }));
+    },
+    importScreenshot(partnerId: string, rows: LineupImportRow[], ilConfirmed: boolean) {
+      draft.importTradePartner(partnerId, rows, ilConfirmed);
     },
     toggleLocked(id: string) {
       if (!ownIds.includes(id)) throw new Error('Only your players can be marked untouchable.');

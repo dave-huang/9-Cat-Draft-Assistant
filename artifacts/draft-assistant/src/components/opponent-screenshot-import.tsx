@@ -10,6 +10,22 @@ import type { Player } from '@/lib/draft-types';
 import type { useWeeklyPlanner } from '@/hooks/use-weekly';
 
 type W = ReturnType<typeof useWeeklyPlanner>;
+export interface ScreenshotImportTarget {
+  demo: boolean;
+  players: Player[];
+  slots: WeeklySlot[];
+  existing: number;
+  title: string;
+  description: string;
+  replacementNote: string;
+  confirmation: string;
+  reviewRows: (rows: LineupScreenshotRow[]) => LineupImportRow[];
+  validate: (rows: LineupImportRow[]) => void;
+  slotOptions: (row: LineupImportRow) => WeeklySlot[];
+  apply: (rows: LineupImportRow[], ilConfirmed: boolean) => void;
+  successMessage: (count: number) => string;
+  applyLabel: (count: number) => string;
+}
 type Edit = { playerId?: string; slotId?: string; skip?: boolean };
 const TIMEOUT_MS = 100_000;
 const norm = normalizePlayerName;
@@ -39,9 +55,8 @@ function PlayerPick({ players, value, hint, onChange, id }: { players: Player[];
   );
 }
 
-export function OpponentScreenshotImport({ w, onImported }: { w: W; onImported: () => void }) {
-  const demo = w.draft.state.source.isDemo;
-  const players = w.draft.state.players;
+export function LineupScreenshotImport({ target, onImported }: { target: ScreenshotImportTarget; onImported: () => void }) {
+  const { demo, players, slots } = target;
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState('');
@@ -145,7 +160,7 @@ export function OpponentScreenshotImport({ w, onImported }: { w: W; onImported: 
     } finally { if (token.current === mine) { setReading(false); mutation.reset(); } }
   };
 
-  const base = useMemo(() => screenshotReviewRows({ rows: raw, warnings: [] }, players, w.slots), [raw, players, w.slots]);
+  const base = useMemo(() => target.reviewRows(raw), [raw, target.reviewRows]);
   const keys = useMemo(() => { const c: Record<string, number> = {}; return raw.map(r => { const k = `${norm(r.name)}|${r.slot}`; c[k] = (c[k] ?? 0) + 1; return `${k}|${c[k]}`; }); }, [raw]);
   const rows: LineupImportRow[] = useMemo(() => base.map((r, i) => ({ ...r, ...edits[keys[i]!] } as LineupImportRow)), [base, edits, keys]);
   const patch = (i: number, e: Edit) => {
@@ -155,38 +170,33 @@ export function OpponentScreenshotImport({ w, onImported }: { w: W; onImported: 
 
   const blocking = useMemo(() => {
     if (!rows.length) return '';
-    try { importOpponentLineup(w.planner, rows, players, w.slots, true); return ''; } catch (e) { return errMsg(e); }
-  }, [rows, w.planner, players, w.slots]);
+    try { target.validate(rows); return ''; } catch (e) { return errMsg(e); }
+  }, [rows, target.validate]);
   const used = rows.filter(r => !r.skip);
-  const slotById = new Map(w.slots.map(s => [s.id, s]));
+  const slotById = new Map(slots.map(s => [s.id, s]));
   const hasIl = used.some(r => slotById.get(r.slotId)?.kind === 'il');
   const unresolved = used.filter(r => !r.playerId).length;
   const flagged = rows.filter(r => !r.skip && (r.uncertain || !r.playerId)).length;
-  const existing = w.planner.opponentRosterIds.length;
+  const existing = target.existing;
   const canApply = rows.length > 0 && !reading && !file && !blocking && lockOk && (!hasIl || ilOk);
 
-  const slotOptions = (r: LineupImportRow): WeeklySlot[] => {
-    const p = players.find(x => x.id === r.playerId);
-    if (!p) return w.slots;
-    return w.slots.filter(s => s.id === r.slotId || s.kind === 'il' || eligibleWeeklySlot(p, s, w.planner.ilEligibleIds ?? []));
-  };
   const apply = () => {
     try {
-      w.importOpponent(rows, hasIl && ilOk);
-      setStatus(`Imported ${used.length} opponent player${used.length === 1 ? '' : 's'}.`);
+      target.apply(rows, hasIl && ilOk);
+      setStatus(target.successMessage(used.length));
       reset(); setOpen(false); onImported();
     } catch (e) { setApplyError(errMsg(e)); }
   };
 
   return (
     <>
-      <button type="button" className={`${btn.ghost} !py-1 !text-xs`} disabled={demo} onClick={() => setOpen(true)} title={demo ? 'Load real projections in Settings to import a lineup.' : 'Read your opponent’s Yahoo lineup from a screenshot'} data-testid="button-import-screenshot">Import screenshot</button>
+      <button type="button" className={`${btn.ghost} !py-1 !text-xs`} disabled={demo} onClick={() => setOpen(true)} title={demo ? 'Load real projections in Settings to import a lineup.' : 'Read a Yahoo roster from a screenshot'} data-testid="button-import-screenshot">Import screenshot</button>
       <span className="sr-only" role="status" aria-live="polite">{status}</span>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[92dvh] max-w-3xl gap-3 p-4 sm:p-5" onPaste={onPaste} aria-busy={reading} data-testid="dialog-import-screenshot">
           <DialogHeader>
-            <DialogTitle>Import opponent lineup</DialogTitle>
-            <DialogDescription>Paste your opponent’s Yahoo lineup, including the left position column. Review every row before replacing their lineup.</DialogDescription>
+            <DialogTitle>{target.title}</DialogTitle>
+            <DialogDescription>{target.description}</DialogDescription>
           </DialogHeader>
           <p className="text-[11px] text-muted-foreground">Gemini receives the image only when you press Read screenshot; usage is billed to your Google API account. This app does not save images. Crop out personal information. PNG, JPEG or WebP, up to 12 MB before resizing.</p>
           <div role="status" aria-live="polite" className="text-xs text-muted-foreground" data-testid="text-import-status">
@@ -228,7 +238,7 @@ export function OpponentScreenshotImport({ w, onImported }: { w: W; onImported: 
                       <PlayerPick id={String(i)} players={players} value={r.playerId} hint={r.name} onChange={id => patch(i, { playerId: id, slotId: '' })} />
                       <select aria-label={`Slot for ${r.name}`} className={`${field} !py-1 !text-xs`} value={r.slotId} onChange={e => patch(i, { slotId: e.target.value })} data-testid={`select-import-slot-${i}`}>
                         <option value="">Slot...</option>
-                        {slotOptions(r).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                        {target.slotOptions(r).map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                       </select>
                       <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={r.skip} onChange={e => patch(i, { skip: e.target.checked })} data-testid={`checkbox-import-skip-${i}`} />Skip</label>
                     </li>
@@ -241,13 +251,13 @@ export function OpponentScreenshotImport({ w, onImported }: { w: W; onImported: 
               {blocking && <Notice tone="error" testId="text-import-blocking">{blocking}</Notice>}
               {applyError && <Notice tone="error" testId="text-import-apply-error">{applyError}</Notice>}
               <div className="space-y-2 rounded-md border bg-card p-2 text-xs">
-                <p>Opponent currently has <strong>{existing}</strong> player{existing === 1 ? '' : 's'}. Applying <strong>replaces</strong> the opponent roster with the {used.length} selected. Your own lineup and games overrides for retained players are kept; overrides for removed players are dropped.</p>
-                <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={lockOk} onChange={e => setLockOk(e.target.checked)} data-testid="checkbox-import-confirm" /><span>I reviewed every name and slot for my opponent’s locked lineup, {w.planner.start} through {w.planner.end}. Applying replaces their entire roster with the selected rows above; any existing players not included here will be removed.</span></label>
+                <p>Saved roster currently has <strong>{existing}</strong> player{existing === 1 ? '' : 's'}. Applying <strong>replaces</strong> it with the {used.length} selected. {target.replacementNote}</p>
+                <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={lockOk} onChange={e => setLockOk(e.target.checked)} data-testid="checkbox-import-confirm" /><span>{target.confirmation}</span></label>
                 {hasIl && <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={ilOk} onChange={e => setIlOk(e.target.checked)} data-testid="checkbox-import-il" /><span>I confirm the players in IL slots really occupy Yahoo IL slots. An Out status alone does not prove it.</span></label>}
               </div>
               <div className="flex flex-wrap justify-end gap-2">
                 <button type="button" className={btn.ghost} onClick={() => onOpenChange(false)} data-testid="button-import-cancel">Cancel</button>
-                <button type="button" className={btn.primary} disabled={!canApply} onClick={apply} data-testid="button-import-apply">Replace opponent with {used.length}</button>
+                <button type="button" className={btn.primary} disabled={!canApply} onClick={apply} data-testid="button-import-apply">{target.applyLabel(used.length)}</button>
               </div>
             </>
           )}
@@ -255,4 +265,25 @@ export function OpponentScreenshotImport({ w, onImported }: { w: W; onImported: 
       </Dialog>
     </>
   );
+}
+
+export function OpponentScreenshotImport({ w, onImported }: { w: W; onImported: () => void }) {
+  const players = w.draft.state.players;
+  return <LineupScreenshotImport onImported={onImported} target={{
+    demo: w.draft.state.source.isDemo, players, slots: w.slots,
+    existing: w.planner.opponentRosterIds.length,
+    title: 'Import opponent lineup',
+    description: 'Paste your opponent’s Yahoo lineup, including the left position column. Review every row before replacing their lineup.',
+    replacementNote: 'Your own lineup and games overrides for retained players are kept; overrides for removed players are dropped.',
+    confirmation: `I reviewed every name and slot for my opponent’s locked lineup, ${w.planner.start} through ${w.planner.end}. Applying replaces their entire roster with the selected rows above; any existing players not included here will be removed.`,
+    reviewRows: raw => screenshotReviewRows({ rows: raw, warnings: [] }, players, w.slots),
+    validate: rows => { importOpponentLineup(w.planner, rows, players, w.slots, true); },
+    slotOptions: row => {
+      const player = players.find(p => p.id === row.playerId);
+      return player ? w.slots.filter(s => s.id === row.slotId || s.kind === 'il' || eligibleWeeklySlot(player, s, w.planner.ilEligibleIds ?? [])) : w.slots;
+    },
+    apply: (rows, ilConfirmed) => w.importOpponent(rows, ilConfirmed),
+    successMessage: count => `Imported ${count} opponent player${count === 1 ? '' : 's'}.`,
+    applyLabel: count => `Replace opponent with ${count}`,
+  }} />;
 }

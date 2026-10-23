@@ -3,6 +3,8 @@ import { analyzeDraft, assignRoster, teamAtPick } from '@/lib/draft-engine';
 import { createInitialState, matchupSchema, parseProjections, parseSession, playerSchema, settingsSchema, tradeWorkspaceSchema } from '@/lib/projections';
 import { migrateLeagueRoster } from '@/lib/league-roster';
 import { withYahooEligibility } from '@/lib/eligibility';
+import { importTradePartnerRoster } from '@/lib/trade-roster-import';
+import type { LineupImportRow } from '@/lib/lineup-import';
 import type { DraftEligibilityFeed } from '@workspace/api-client-react';
 import type { DraftState, LeagueSettings, Player, Position, ProjectionSource } from '@/lib/draft-types';
 
@@ -157,6 +159,10 @@ const actions = {
     }
     if (next.lockedPlayerIds.some(id => !ids.has(id))) throw new Error('An untouchable player is missing from the pool.');
     commit({ ...state, trades: next });
+  },
+  importTradePartner(partnerId: string, rows: LineupImportRow[], ilConfirmed: boolean) {
+    const trades = importTradePartnerRoster(state, partnerId, rows, ilConfirmed);
+    commit({ ...state, trades });
   },
   applyInjuries(reports: { name: string; status: string; note: string; updatedAt?: string; source: string; returnDate?: string }[], checkedAt: string, reportUpdatedAt?: string) {
     if (state.source.isDemo) throw new Error('Load current projections before checking injuries. Demo identities are not verified.');
