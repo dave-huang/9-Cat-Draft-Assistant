@@ -23,7 +23,7 @@ function sessionId(req: Request): string | null {
 
 function requireConfig(readConfig: typeof inspectYahooConfig): YahooConfig {
   const { config } = readConfig();
-  if (!config) throw new YahooConnectionError("not_configured", "Set up the published Yahoo application and required Secrets before connecting.", 503);
+  if (!config) throw new YahooConnectionError("not_configured", "Set up the published Yahoo application and required environment variables before connecting.", 503);
   return config;
 }
 

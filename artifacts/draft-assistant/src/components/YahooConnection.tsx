@@ -15,7 +15,7 @@ const ERRORS: Record<string, string> = {
   denied: 'You declined the new authorization request. Any previously saved Yahoo connection is unchanged.',
   state_invalid: 'The sign-in could not be matched to this browser session (expired or opened in a different browser or origin). Start again from the published app in a normal browser tab.',
   token_failed: 'Yahoo did not return access after approval. Try connecting again.',
-  invalid_client: 'Yahoo rejected the app credentials. Check YAHOO_CLIENT_ID and YAHOO_CLIENT_SECRET in Replit Secrets.',
+  invalid_client: 'Yahoo rejected the app credentials. Check YAHOO_CLIENT_ID and YAHOO_CLIENT_SECRET in the server environment.',
   invalid_grant: 'The Yahoo authorization code expired or was already used. Start again.',
   invalid_scope: 'Yahoo rejected the requested permission. Confirm the Yahoo app has Fantasy Sports read access.',
   provider_unavailable: 'Yahoo is unavailable right now. Try again shortly.',
@@ -151,10 +151,10 @@ export function YahooConnection() {
           <li>Export a draft backup before switching URLs, then publish this app to get a stable URL. Restore the backup in the published app: draft storage is separate for each site.</li>
           <li>Create a Yahoo Web Application at <a className="break-all underline" href="https://developer.yahoo.com/apps/create/" target="_blank" rel="noreferrer">developer.yahoo.com/apps/create</a> with Fantasy Sports read access (private data).</li>
           <li>Set the redirect URI to your published origin followed by <code className="break-all font-mono text-xs">/api/yahoo/callback</code>. It must match exactly, as <code className="font-mono text-xs">YAHOO_REDIRECT_URI</code>.</li>
-          <li>Add <code className="font-mono text-xs">YAHOO_CLIENT_ID</code> and <code className="font-mono text-xs">YAHOO_CLIENT_SECRET</code> in Replit Secrets. <code className="font-mono text-xs">SESSION_SECRET</code> is already available.</li>
+          <li>Add <code className="font-mono text-xs">YAHOO_CLIENT_ID</code> and <code className="font-mono text-xs">YAHOO_CLIENT_SECRET</code> in the server environment. <code className="font-mono text-xs">SESSION_SECRET</code> must also be set (32+ random characters).</li>
         </ol>
         {s.redirectUri && <p className={t}>Server redirect URI: <code className="break-all font-mono">{s.redirectUri}</code></p>}
-        <p className={t}>This uses your own Yahoo application, not the Replit managed connector.</p>
+        <p className={t}>This uses your own Yahoo application, not a managed connector.</p>
         <button className={btn.ghost} onClick={() => status.refetch()} disabled={status.isFetching} data-testid="button-yahoo-recheck"><RefreshCw className="h-4 w-4" />Check again</button>
       </div>
     );

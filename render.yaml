@@ -1,0 +1,11 @@
+# Render Blueprint. Nothing is created until you connect the repo in Render and approve it.
+services:
+  - type: web
+    name: nine-cat-draft-assistant
+    runtime: docker
+    plan: starter        # ~US$7/month, always on. "free" works but sleeps after 15 min idle.
+    healthCheckPath: /api/healthz
+    autoDeploy: true     # redeploy on every push to the default branch
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false      # you enter the value in the Render dashboard; it is never stored in git

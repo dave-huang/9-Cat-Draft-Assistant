@@ -1,14 +1,9 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { databaseConfigured } from "@workspace/db";
 import { purgeExpiredYahooSessions } from "./lib/yahoo-store";
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
+const rawPort = process.env["PORT"] ?? "8080";
 
 const port = Number(rawPort);
 
@@ -20,8 +15,10 @@ if (Number.isNaN(port) || port <= 0) {
 const purge = () => purgeExpiredYahooSessions().catch(() => {
   logger.warn("Expired Yahoo connection cleanup is temporarily unavailable");
 });
-void purge();
-setInterval(() => { void purge(); }, 15 * 60 * 1000).unref();
+if (databaseConfigured) {
+  void purge();
+  setInterval(() => { void purge(); }, 15 * 60 * 1000).unref();
+}
 
 app.listen(port, (err) => {
   if (err) {

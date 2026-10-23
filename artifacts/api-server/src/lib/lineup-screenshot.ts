@@ -86,7 +86,7 @@ export async function readScreenshot(
       else if (/location|region|country/i.test(message)) category = 'location';
       else if (/response.?schema|generation.?config/i.test(message)) category = 'request';
     } catch { /* Non-JSON provider errors use the fixed generic message below. */ }
-    if (category === 'key') throw failure(503, 'gemini_key_invalid', 'Google reports that GEMINI_API_KEY is invalid or expired. Replace it in project Secrets with a valid Gemini API key. Your lineups are unchanged.');
+    if (category === 'key') throw failure(503, 'gemini_key_invalid', 'Google reports that GEMINI_API_KEY is invalid or expired. Replace it in the server environment with a valid Gemini API key. Your lineups are unchanged.');
     if (category === 'location') throw failure(503, 'gemini_location_restricted', 'Google does not allow this Gemini request from the server’s region. Your lineups are unchanged.');
     if (response.status === 401 || response.status === 403) throw failure(503, 'gemini_access_denied', 'Gemini rejected the server API key or its permissions. Check GEMINI_API_KEY and Google API access. Your lineups are unchanged.');
     if (response.status === 404) throw failure(503, 'gemini_model_unavailable', 'Google could not find the configured Gemini model for screenshot recognition. Your lineups are unchanged.');
