@@ -3,7 +3,7 @@ services:
   - type: web
     name: nine-cat-draft-assistant
     runtime: docker
-    plan: starter        # ~US$7/month, always on. "free" works but sleeps after 15 min idle.
+    plan: free           # US$0; sleeps after ~15 min idle (first request wakes it in ~1 min). Use "starter" (~US$7/mo) for always-on.
     healthCheckPath: /api/healthz
     autoDeploy: true     # redeploy on every push to the default branch
     envVars:

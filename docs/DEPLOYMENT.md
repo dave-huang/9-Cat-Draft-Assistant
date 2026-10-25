@@ -19,7 +19,7 @@ Nothing has been created or paid for yet. Creating the service requires your app
 
 ## Steps (Render)
 1. Render dashboard → New → Blueprint → connect `dave-huang/9-cat-draft-assistant` → it reads `render.yaml`.
-2. Enter `GEMINI_API_KEY` when prompted (stored in Render, never in git). Choose the plan.
+2. Enter `GEMINI_API_KEY` when prompted (stored in Render, never in git). `render.yaml` selects the Free plan; change `plan: free` to `starter` for always-on.
 3. Wait for the first deploy; open the `*.onrender.com` URL; `/api/healthz` should return `{"status":"ok"}`.
 4. (Optional) Settings → Custom Domains; add the DNS record Render shows.
 
