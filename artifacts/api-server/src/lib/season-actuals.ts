@@ -73,17 +73,44 @@ export function parseSeasonActuals(payload: unknown, season: number, fetchedAt: 
   });
 }
 
+const PAGE_SIZE = 700, MAX_PAGES = 3;
+
 export function createSeasonActualsService(fetcher: typeof fetch = fetch) {
   return cached(15 * 60_000, async () => {
     const season = nbaSeasonEnd();
-    const filter = { players: { limit: 700, filterStatsForTopScoringPeriodIds: { value: 5, additionalValue: [`00${season}`] },
-      sortDraftRanks: { sortPriority: 100, sortAsc: true, value: 'STANDARD' } } };
     const base = `https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/${season}`;
-    const [payload, teamsPayload] = await Promise.all([
-      providerJson(`${base}/segments/0/leaguedefaults/3?view=kona_player_info`, fetcher, { 'X-Fantasy-Filter': JSON.stringify(filter) }),
+    const page = (offset: number) => providerJson(`${base}/segments/0/leaguedefaults/3?view=kona_player_info`, fetcher, {
+      'X-Fantasy-Filter': JSON.stringify({ players: { limit: PAGE_SIZE, ...(offset ? { offset } : {}),
+        filterStatsForTopScoringPeriodIds: { value: 5, additionalValue: [`00${season}`] },
+        sortDraftRanks: { sortPriority: 100, sortAsc: true, value: 'STANDARD' } } }),
+    });
+    const [first, teamsPayload] = await Promise.all([
+      page(0),
       // Team names are optional enrichment: if unavailable, the stat feed still works.
       providerJson(`${base}?view=proTeamSchedules_wl`, fetcher).catch(() => undefined),
     ]);
+    const payload = object(first);
+    // A full first page means ESPN has more players (e.g. unranked, no-projection players with real
+    // games). Read further pages best-effort: a failed or ignored page never breaks the feed, and
+    // repeated players are dropped so a provider that ignores `offset` cannot create duplicates.
+    if (Array.isArray(payload.players) && payload.players.length >= PAGE_SIZE) {
+      const seen = new Set(payload.players.map(entry => object(object(entry).player).id));
+      const merged = [...payload.players];
+      for (let i = 1; i < MAX_PAGES; i++) {
+        let next: Obj;
+        try { next = object(await page(i * PAGE_SIZE)); } catch { break; }
+        const received = Array.isArray(next.players) ? next.players : [];
+        const fresh = received.filter(entry => {
+          const id = object(object(entry).player).id;
+          if (seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+        merged.push(...fresh);
+        if (!fresh.length || received.length < PAGE_SIZE) break;
+      }
+      payload.players = merged;
+    }
     return parseSeasonActuals(payload, season, new Date().toISOString(), teamsPayload);
   });
 }

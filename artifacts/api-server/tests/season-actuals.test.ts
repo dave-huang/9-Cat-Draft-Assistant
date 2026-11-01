@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseSeasonActuals, createSeasonActualsService } from '../src/lib/season-actuals';
+import { nbaSeasonEnd } from '../src/lib/draft-data';
 
 const fetchedAt = '2026-10-21T12:00:00Z';
 const stats = { 0: 100, 1: 2, 2: 3, 3: 20, 6: 24, 11: 8, 13: 35, 14: 70, 15: 20, 16: 25, 17: 10, 42: 4 };
@@ -97,4 +98,38 @@ test('a team-metadata outage does not break the actuals feed; players just lack 
   const feed = await service();
   assert.equal(feed.players.length, 150);
   assert.equal(feed.players[0]!.team, undefined);
+});
+
+const bigPayload = (from: number, count: number) => ({ players: Array.from({ length: count }, (_, i) => profile(from + i)) });
+const offsetOf = (options?: RequestInit) => JSON.parse((options!.headers as Record<string, string>)['X-Fantasy-Filter']!).players.offset as number | undefined;
+const season2027 = <T extends { players: { player: { stats: { seasonId: number }[] } }[] }>(data: T) => {
+  for (const p of data.players) for (const s of p.player.stats) s.seasonId = nbaSeasonEnd();
+  return data;
+};
+
+test('a full first page triggers further pages so players beyond ESPN\'s top 700 (e.g. no projection) are included', async () => {
+  const offsets: (number | undefined)[] = [];
+  const service = createSeasonActualsService(async (url, options) => {
+    if (String(url).includes('proTeamSchedules_wl')) return Response.json(teamsPayload());
+    offsets.push(offsetOf(options));
+    const offset = offsetOf(options) ?? 0;
+    return Response.json(season2027(offset === 0 ? bigPayload(1, 700) : offset === 700 ? bigPayload(701, 25) : { players: [] }));
+  });
+  const feed = await service();
+  assert.deepEqual(offsets, [undefined, 700]);
+  assert.equal(feed.totalPlayers, 725);
+  assert.ok(feed.players.some(p => p.id === 'espn-725'));
+});
+
+test('paging is harmless when ESPN ignores offset or a later page fails', async () => {
+  const ignoring = createSeasonActualsService(async url =>
+    String(url).includes('proTeamSchedules_wl') ? Response.json(teamsPayload()) : Response.json(season2027(bigPayload(1, 700))));
+  const a = await ignoring();
+  assert.equal(a.totalPlayers, 700, 'Repeated players are dropped, never duplicated');
+  const failing = createSeasonActualsService(async (url, options) => {
+    if (String(url).includes('proTeamSchedules_wl')) return Response.json(teamsPayload());
+    if (offsetOf(options)) return new Response('down', { status: 503 });
+    return Response.json(season2027(bigPayload(1, 700)));
+  });
+  assert.equal((await failing()).totalPlayers, 700);
 });
