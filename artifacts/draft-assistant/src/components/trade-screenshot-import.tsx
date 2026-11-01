@@ -5,7 +5,8 @@ import type { TradesHook } from '@/hooks/use-trades';
 export function TradeScreenshotImport({ t, partnerId, onImported }: { t: TradesHook; partnerId: string; onImported: () => void }) {
   const partner = t.partners.find(p => p.id === partnerId);
   if (!partner) return null;
-  const state = t.draft.state;
+  // Candidates are saved to the pool only if a selected row uses them (see useTrades.importScreenshot).
+  const state = t.candidates.length ? { ...t.draft.state, players: [...t.draft.state.players, ...t.candidates] } : t.draft.state;
   return <LineupScreenshotImport onImported={onImported} target={{
     demo: state.source.isDemo, players: state.players, slots: tradeImportSlots,
     existing: partner.rosterIds.length,

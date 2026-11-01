@@ -19,7 +19,7 @@ export default function Weekly() {
   const [end, setEnd] = useState<string | null>(null);
   const run = (fn: () => void) => { try { fn(); setError(''); } catch (e) { setError(errMsg(e)); } };
   const taken = useMemo(() => new Set([...planner.myRosterIds, ...planner.opponentRosterIds]), [planner]);
-  const players = draft.state.players;
+  const players = w.pool;
   const activeSlots = w.slots.filter(s => s.kind === 'active');
   const oppFilled = activeSlots.filter(s => w.opponentLineup[s.id]).length;
   const oppIncomplete = oppFilled < activeSlots.length;
@@ -30,7 +30,8 @@ export default function Weekly() {
   const sv = start ?? planner.start, ev = end ?? planner.end;
   const demo = draft.state.source.isDemo;
   const unverified = [...w.mine, ...w.opponent].filter(({ player: p }) => !p.positionsVerified && p.positionsSource !== 'Manual' && (p.positionsSource !== 'Yahoo' || p.yahooEligibilityMissing || p.positionsConflict));
-  const stale = [...w.mine, ...w.opponent].some(r => r.player.projectionUnavailable && r.player.weeklyStats?.basis !== 'actuals');
+  const stale = [...w.mine, ...w.opponent].some(r => r.player.projectionUnavailable && !r.player.actualsOnly && r.player.weeklyStats?.basis !== 'actuals');
+  const noProjection = [...w.mine, ...w.opponent].some(r => r.player.actualsOnly && r.player.weeklyStats?.basis !== 'actuals');
 
   let guard: string | null = null;
   if (demo) guard = 'Demo projections are illustrative. Load real projections in Settings to analyze a week.';
@@ -72,6 +73,7 @@ export default function Weekly() {
       {w.analysisError && <Notice tone="error">{w.analysisError}</Notice>}
       {unverified.length > 0 && <Notice tone="warn"><details><summary className="cursor-pointer">Check Yahoo positions for {unverified.length} player{unverified.length === 1 ? '' : 's'}. Open player Details → Positions to correct.</summary><p className="mt-1 text-xs">{unverified.map(r => r.player.name).join(', ')}</p></details></Notice>}
       {stale && <Notice tone="warn">Some players are missing from the latest projection feed; saved projections are used.</Notice>}
+      {noProjection && <Notice tone="warn">Some players have no ESPN projection. Their rates are saved season-to-date averages; switch Stats basis to season-to-date averages for current numbers.</Notice>}
 
       <section className="rounded-lg border bg-card px-3 py-2" aria-label="Matchup dates and data">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

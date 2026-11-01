@@ -30,6 +30,7 @@ export const playerSchema = z.object({
   yahooEligibilityMissing: z.boolean().optional(),
   positionsConflict: z.boolean().optional(),
   projectionUnavailable: z.boolean().optional(),
+  actualsOnly: z.boolean().optional(),
 }).refine(p => p.fgm <= p.fga && p.ftm <= p.fta && p.threes <= p.fgm, {
   message: 'Makes cannot exceed attempts; three-point makes cannot exceed field-goal makes.',
 });

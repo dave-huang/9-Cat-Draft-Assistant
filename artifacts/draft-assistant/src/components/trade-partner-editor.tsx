@@ -74,7 +74,7 @@ export function TradePartnerEditor({ t, partnerId, onError }: { t: TradesHook; p
           <ul className="mt-1 divide-y rounded-md border" data-testid="list-trade-search">
             {results.map(p => (
               <li key={p.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm">
-                <span className="min-w-0 flex-1 truncate">{p.name} <span className="text-[11px] text-muted-foreground">{p.positions.join('/')} - {p.team}</span></span>
+                <span className="min-w-0 flex-1 truncate">{p.name} <span className="text-[11px] text-muted-foreground">{p.actualsOnly ? 'Actuals only - ' : ''}{p.positions.join('/')} - {p.team}</span></span>
                 <button type="button" className={btn.ghost} onClick={() => run(() => { t.addPlayer(partner.id, p.id); setSearch(''); })} data-testid={`button-trade-add-${p.id}`}>Add</button>
               </li>
             ))}

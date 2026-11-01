@@ -28,6 +28,7 @@ export * from './nbaGameStatus';
 export * from './nbaSchedule';
 export * from './seasonActualsFeed';
 export * from './seasonActualsPlayer';
+export * from './seasonActualsPlayerPositionsItem';
 export * from './yahooAuthorization';
 export * from './yahooConsent';
 export * from './yahooDisconnected';

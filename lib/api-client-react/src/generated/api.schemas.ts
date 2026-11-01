@@ -197,9 +197,28 @@ export interface DraftProjectionFeed {
   source: DraftProjectionFeedSource;
 }
 
+export type SeasonActualsPlayerPositionsItem = typeof SeasonActualsPlayerPositionsItem[keyof typeof SeasonActualsPlayerPositionsItem];
+
+
+export const SeasonActualsPlayerPositionsItem = {
+  PG: 'PG',
+  SG: 'SG',
+  SF: 'SF',
+  PF: 'PF',
+  C: 'C',
+} as const;
+
 export interface SeasonActualsPlayer {
   id: string;
   name: string;
+  /** NBA team abbreviation; omitted when unavailable */
+  team?: string;
+  /**
+     * ESPN position eligibility (PG, SG, SF, PF, C); omitted when unavailable
+     * @minItems 1
+     * @maxItems 5
+     */
+  positions?: SeasonActualsPlayerPositionsItem[];
   /**
      * @minimum 1
      * @maximum 100

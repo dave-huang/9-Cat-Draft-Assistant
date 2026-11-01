@@ -169,6 +169,8 @@ export const GetDraftProjectionsResponse = zod.object({
 /**
  * @summary Current regular-season actual per-game NBA statistics, not projections
  */
+export const getSeasonActualsResponsePlayersItemPositionsMax = 5;
+
 export const getSeasonActualsResponsePlayersItemGamesPlayedMax = 100;
 
 export const getSeasonActualsResponsePlayersItemPointsMin = 0;
@@ -204,6 +206,8 @@ export const GetSeasonActualsResponse = zod.object({
   "players": zod.array(zod.object({
   "id": zod.string(),
   "name": zod.string(),
+  "team": zod.string().optional().describe('NBA team abbreviation; omitted when unavailable'),
+  "positions": zod.array(zod.enum(['PG', 'SG', 'SF', 'PF', 'C'])).min(1).max(getSeasonActualsResponsePlayersItemPositionsMax).optional().describe('ESPN position eligibility (PG, SG, SF, PF, C); omitted when unavailable'),
   "gamesPlayed": zod.number().int().min(1).max(getSeasonActualsResponsePlayersItemGamesPlayedMax),
   "points": zod.number().min(getSeasonActualsResponsePlayersItemPointsMin),
   "rebounds": zod.number().min(getSeasonActualsResponsePlayersItemReboundsMin),

@@ -5,10 +5,19 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SeasonActualsPlayerPositionsItem } from './seasonActualsPlayerPositionsItem';
 
 export interface SeasonActualsPlayer {
   id: string;
   name: string;
+  /** NBA team abbreviation; omitted when unavailable */
+  team?: string;
+  /**
+     * ESPN position eligibility (PG, SG, SF, PF, C); omitted when unavailable
+     * @minItems 1
+     * @maxItems 5
+     */
+  positions?: SeasonActualsPlayerPositionsItem[];
   /**
      * @minimum 1
      * @maximum 100

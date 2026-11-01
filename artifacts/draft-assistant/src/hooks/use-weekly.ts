@@ -7,7 +7,7 @@ import type { Player, WeeklyPlannerState } from '@/lib/draft-types';
 import type { WeeklyPlayer } from '@/lib/weekly-engine';
 import { currentWeeklyAnalysis, eligibleWeeklySlot, lineupErrors, moveWeeklyPlayer, optimalWeeklyLineup, prepareWeeklyPlanner, syncWeeklyLineups, visibleWeeklySlots, weeklySlots, type WeeklyLineup, type WeeklySide } from '@/lib/weekly-lineup';
 import { importOpponentLineup, type LineupImportRow } from '@/lib/lineup-import';
-import { playersForWeeklyBasis, type StatsBasis } from '@/lib/weekly-stats';
+import { actualsOnlyCandidates, playersForWeeklyBasis, type StatsBasis } from '@/lib/weekly-stats';
 
 const pendingRows = (players: Player[]): WeeklyPlayer[] => players.map(player => ({
   player, scheduledGames: 0, expectedGames: 0, dates: [], override: false, schedulePending: true,
@@ -32,6 +32,11 @@ export function useWeeklyPlanner() {
   const statsReady = statsBasis === 'projections' || (!!actuals && !statsError);
   const weeklyPool = useMemo(() => playersForWeeklyBasis(draft.state.players, statsBasis, draft.state.source.season, actuals),
     [draft.state.players, statsBasis, draft.state.source.season, actuals]);
+  // Real-games-but-no-projection players, offered only while viewing season-to-date averages. They are
+  // saved to the pool only when a roster actually uses them (see `update`).
+  const candidates = useMemo(() => statsBasis === 'actuals' && statsReady ? actualsOnlyCandidates(draft.state.players, draft.state.source.season, actuals) : [],
+    [statsBasis, statsReady, draft.state.players, draft.state.source.season, actuals]);
+  const pool = useMemo(() => candidates.length ? [...draft.state.players, ...candidates] : draft.state.players, [draft.state.players, candidates]);
   const myLineup = planner.myLineup!, opponentLineup = planner.opponentLineup!;
   const activeSlots = draft.state.settings.rosterSlots.filter(s => s !== 'BN');
   const validDates = validMatchupDates(planner.start, planner.end);
@@ -40,7 +45,7 @@ export function useWeeklyPlanner() {
     enabled: validDates, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000, refetchOnWindowFocus: true, retry: 1,
   } });
   const schedule = request.data?.start === planner.start && request.data.end === planner.end ? request.data : undefined;
-  const ids = new Map(draft.state.players.map(p => [p.id, p]));
+  const ids = new Map(pool.map(p => [p.id, p]));
   useEffect(() => {
     if ((!draft.state.matchup?.myLineup || !draft.state.matchup?.opponentLineup || !draft.state.matchup?.ilEligibleIds) && !draft.saveError) draft.updateMatchup(planner);
   }, [draft.state.matchup, draft.saveError, planner]);
@@ -72,7 +77,8 @@ export function useWeeklyPlanner() {
       if (roster.length - reserves.length > draft.state.settings.rosterSlots.length &&
           roster.length - reserves.length > previous.length - oldReserves.length) throw new Error('The regular roster is full. Free a regular slot before activating or adding a player.');
     }
-    draft.updateMatchup(synced);
+    const used = new Set([...synced.myRosterIds, ...synced.opponentRosterIds]);
+    draft.updateMatchup(synced, candidates.filter(p => used.has(p.id)));
   };
   const withLineup = (next: WeeklyPlannerState, side: WeeklySide, lineup: WeeklyLineup) =>
     ({ ...next, [side === 'mine' ? 'myLineup' : 'opponentLineup']: lineup });
@@ -85,7 +91,7 @@ export function useWeeklyPlanner() {
     },
     importOpponent(rows: LineupImportRow[], ilConfirmed: boolean) {
       if (draft.state.source.isDemo) throw new Error('Load real season projections before importing a lineup.');
-      update(importOpponentLineup(planner, rows, draft.state.players, slots, ilConfirmed));
+      update(importOpponentLineup(planner, rows, pool, slots, ilConfirmed));
     },
     setDates(start: string, end: string) {
       if (!validMatchupDates(start, end)) throw new Error('Choose valid inclusive dates spanning 1–14 days, matching your Yahoo matchup.');
@@ -157,7 +163,7 @@ export function useWeeklyPlanner() {
         ilEligibleIds: (planner.ilEligibleIds ?? []).filter(id => planner.myRosterIds.includes(id)) });
     },
   };
-  return { draft, planner, mine, opponent, schedule, ...result, ...actions, activeSlots, slots, myLineup, opponentLineup, lineupErrors: errors, dataStatus,
+  return { draft, planner, pool, mine, opponent, schedule, ...result, ...actions, activeSlots, slots, myLineup, opponentLineup, lineupErrors: errors, dataStatus,
     statsBasis, actuals, statsError, statsReady, statsLoading: statsBasis === 'actuals' && actualsRequest.isLoading,
     statsRefreshing: actualsRequest.isFetching, refreshActuals: () => actualsRequest.refetch(),
     statsSamples: [...mine, ...opponent].map(r => ({ id: r.player.id, name: r.player.name, ...r.player.weeklyStats! })),

@@ -46,7 +46,8 @@ export function weeklyPlayers(players: Player[], schedule: NbaSchedule, override
     const override = Object.hasOwn(overrides, player.id);
     const expectedGames = override ? Math.min(overrides[player.id]!, unknown ? 14 : games.length) : out ? 0 : games.length;
     return { player, dates: games.map(g => g.date), scheduledGames: games.length, expectedGames, override,
-      warning: player.projectionUnavailable && player.weeklyStats?.basis !== 'actuals' ? 'Missing from the latest projection feed; these are saved projections.' :
+      warning: player.actualsOnly && player.weeklyStats?.basis !== 'actuals' ? 'No ESPN projection exists for this player. Shown rates are his season-to-date averages from when he was added; switch Stats basis to season-to-date averages for current numbers.' :
+        player.projectionUnavailable && player.weeklyStats?.basis !== 'actuals' ? 'Missing from the latest projection feed; these are saved projections.' :
         unknown ? 'NBA team not recognized. Set expected games manually; scheduled games cannot be verified.' :
         out ? (override ? 'Out/injured status: using your expected-game override, not a medical clearance.' : 'Out/injured: conservatively assumes 0 games. Edit expected games if a return is likely.') :
         /questionable|doubtful|day.to.day|dtd/i.test(player.injuryStatus ?? '') ? 'Availability uncertain: full schedule assumed unless you override expected games.' : undefined };

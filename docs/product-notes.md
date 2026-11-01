@@ -90,3 +90,7 @@ The user's currently requested draft season is 2026–27, explicitly confirmed b
 ## Pointers
 
 - `docs/maintenance-notes/` — earlier decision notes (league rules, screenshot provider choice, data-source checks).
+
+## Actuals-only players (added after the Replit migration)
+
+When Weekly's Stats basis is season-to-date averages, players with real current-season games but no ESPN projection (so absent from the saved pool) can be found in Weekly/Trades search and matched in screenshot imports. The actuals feed now carries optional `team` and `positions`; a feed player is offered only if both are present and no pool player matches by id or normalized name. A candidate is saved into `state.players` (flag `actualsOnly`, `projectionUnavailable`) only in the same commit as a Weekly/Trades roster that uses him; the draft board, rankings and baselines ignore `actualsOnly` players, and the next projection refresh drops any that no roster uses. Their saved rates are the season-to-date averages when added (never zeros); the actuals basis refreshes them live. Trade suggestions skip `projectionUnavailable` players, so they can be rostered but not proposed. Yahoo positions apply at the next eligibility refresh (until then they are ESPN, unverified).

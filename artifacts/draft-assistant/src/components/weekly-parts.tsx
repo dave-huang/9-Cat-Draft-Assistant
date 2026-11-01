@@ -25,7 +25,7 @@ export function PlayerSearch({ side, players, excluded, onAdd, onAddIl }: { side
               <button type="button" className="flex min-w-0 flex-1 items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-secondary" data-testid={`button-add-${side}-${p.id}`}
                 onClick={() => { onAdd(p.id); setQ(''); }}>
                 <span className="font-semibold">{p.name}</span>
-                <span className="font-mono text-[11px] text-muted-foreground">{p.team} {p.positions.join('/')}</span>
+                <span className="font-mono text-[11px] text-muted-foreground">{p.actualsOnly ? 'Actuals only · ' : ''}{p.team} {p.positions.join('/')}</span>
               </button>
               {onAddIl && <button type="button" className="px-3 py-1.5 text-xs font-semibold underline hover:bg-secondary" data-testid={`button-add-il-${side}-${p.id}`} onClick={() => { onAddIl(p.id); setQ(''); }}>Add to IL</button>}
             </li>

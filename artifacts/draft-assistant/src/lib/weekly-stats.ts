@@ -33,3 +33,22 @@ export function playersForWeeklyBasis(players: Player[], basis: StatsBasis, seas
     return { ...p, ...rates, weeklyStats: { basis: 'actuals', gamesPlayed: actual.gamesPlayed } };
   });
 }
+
+/** Players with real current-season games but no projection in the saved pool.
+ * Requires explicit team and positions from the feed; nothing is guessed. Not added to the saved
+ * pool until a weekly/trade roster actually uses them, and never used by the draft board.
+ */
+export function actualsOnlyCandidates(players: Player[], season: string, feed?: SeasonActualsFeed): Player[] {
+  if (!feed || feed.season !== season) return [];
+  const ids = new Set(players.map(p => p.id));
+  const names = new Set(players.map(p => normalizePlayerName(p.name)));
+  return feed.players.flatMap(a => {
+    if (!a.team || !a.positions?.length || ids.has(a.id) || names.has(normalizePlayerName(a.name))) return [];
+    const rates = Object.fromEntries(statKeys.map(key => [key, a[key]])) as Pick<Player, typeof statKeys[number]>;
+    return [{
+      id: a.id, name: a.name, team: a.team, positions: [...a.positions], games: Math.min(82, a.gamesPlayed), ...rates,
+      positionsSource: 'ESPN' as const, projectionUnavailable: true, actualsOnly: true,
+      note: `No ESPN projection. Season-to-date averages from ${a.gamesPlayed} games when added.`,
+    }];
+  });
+}

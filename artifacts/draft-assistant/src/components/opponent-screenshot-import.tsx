@@ -268,7 +268,7 @@ export function LineupScreenshotImport({ target, onImported }: { target: Screens
 }
 
 export function OpponentScreenshotImport({ w, onImported }: { w: W; onImported: () => void }) {
-  const players = w.draft.state.players;
+  const players = w.pool;
   return <LineupScreenshotImport onImported={onImported} target={{
     demo: w.draft.state.source.isDemo, players, slots: w.slots,
     existing: w.planner.opponentRosterIds.length,

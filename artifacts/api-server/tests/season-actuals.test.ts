@@ -54,9 +54,26 @@ test('actuals reject ambiguous identities, inconsistent shooting and partial cov
   assert.equal(parseSeasonActuals(sparse, 2027, fetchedAt).players[0]!.threes, 0);
 });
 
+const teamsPayload = () => ({ settings: { proTeams: Array.from({ length: 30 }, (_, i) => ({ id: i + 1, abbrev: `T${i + 1}` })) } });
+
+test('team and positions come only from explicit ESPN fields and are omitted, never guessed', () => {
+  const data = payload();
+  Object.assign(data.players[0]!.player, { proTeamId: 7, eligibleSlots: [4, 5, 6, 12, 4] });
+  Object.assign(data.players[1]!.player, { proTeamId: 7, eligibleSlots: [5, 6] });  // only generic slots
+  Object.assign(data.players[2]!.player, { proTeamId: 999, eligibleSlots: [0] });   // unknown team
+  const feed = parseSeasonActuals(data, 2027, fetchedAt, teamsPayload());
+  assert.equal(feed.players[0]!.team, 'T7'); assert.deepEqual(feed.players[0]!.positions, ['C']);
+  assert.equal(feed.players[1]!.positions, undefined, 'Generic G/F/UTIL slots never become positions');
+  assert.equal(feed.players[2]!.team, undefined); assert.deepEqual(feed.players[2]!.positions, ['PG']);
+  const none = parseSeasonActuals(data, 2027, fetchedAt);
+  assert.equal(none.players[0]!.team, undefined, 'Without team metadata no team is invented');
+  assert.equal(parseSeasonActuals(data, 2027, fetchedAt, { settings: { proTeams: [{ id: 7, abbrev: 'X' }] } }).players[0]!.team, undefined, 'Incomplete team metadata is ignored');
+});
+
 test('actuals service requests actual profiles and coalesces/caches a validated feed', async () => {
   let calls = 0;
   const service = createSeasonActualsService(async (url, options) => {
+    if (String(url).includes('proTeamSchedules_wl')) return Response.json(teamsPayload());
     calls++;
     const season = Number(String(url).match(/seasons\/(\d+)/)?.[1]);
     const data = payload();
@@ -67,4 +84,17 @@ test('actuals service requests actual profiles and coalesces/caches a validated 
   const [a, b] = await Promise.all([service(), service()]);
   assert.deepEqual(a, b); assert.equal(calls, 1);
   await service(); assert.equal(calls, 1);
+});
+
+test('a team-metadata outage does not break the actuals feed; players just lack team/positions enrichment', async () => {
+  const service = createSeasonActualsService(async url => {
+    if (String(url).includes('proTeamSchedules_wl')) return new Response('down', { status: 503 });
+    const data = payload();
+    Object.assign(data.players[0]!.player, { proTeamId: 7, eligibleSlots: [4] });
+    for (const p of data.players) for (const s of p.player.stats) s.seasonId = Number(String(url).match(/seasons\/(\d+)/)?.[1]);
+    return Response.json(data);
+  });
+  const feed = await service();
+  assert.equal(feed.players.length, 150);
+  assert.equal(feed.players[0]!.team, undefined);
 });

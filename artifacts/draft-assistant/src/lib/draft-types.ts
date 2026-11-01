@@ -36,6 +36,9 @@ export interface Player {
   yahooEligibilityMissing?: boolean;
   positionsConflict?: boolean;
   projectionUnavailable?: boolean;
+  /** Real current-season games exist but ESPN has no projection. Added to the saved pool only when a
+   * weekly/trade roster uses the player; never shown on the draft board or used in draft rankings. */
+  actualsOnly?: boolean;
   /** Weekly-only derived metadata; the base projection player is never overwritten. */
   weeklyStats?: {
     basis: 'projections' | 'actuals';

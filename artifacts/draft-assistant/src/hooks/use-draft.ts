@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { analyzeDraft, assignRoster, teamAtPick } from '@/lib/draft-engine';
 import { createInitialState, matchupSchema, parseProjections, parseSession, playerSchema, settingsSchema, tradeWorkspaceSchema } from '@/lib/projections';
 import { migrateLeagueRoster } from '@/lib/league-roster';
-import { withYahooEligibility } from '@/lib/eligibility';
+import { normalizePlayerName, withYahooEligibility } from '@/lib/eligibility';
 import { importTradePartnerRoster } from '@/lib/trade-roster-import';
 import type { LineupImportRow } from '@/lib/lineup-import';
 import type { DraftEligibilityFeed } from '@workspace/api-client-react';
@@ -59,6 +59,19 @@ window.addEventListener('storage', event => {
   }
   publish();
 });
+/** Adds players who have real games but no projection, in the same commit as the roster change that
+ * uses them. Only weekly/trade rosters may reference them; the draft board and rankings ignore them. */
+function withActualsOnly(base: DraftState, extras?: Player[]): DraftState {
+  if (!extras?.length) return base;
+  if (base.source.isDemo) throw new Error('Load real season projections before adding players from season-to-date statistics.');
+  const known = new Set(base.players.map(p => p.id)), names = new Set(base.players.map(p => normalizePlayerName(p.name)));
+  const added = extras.filter(p => !known.has(p.id)).map(p => {
+    const parsed = playerSchema.parse(p);
+    if (!parsed.actualsOnly || names.has(normalizePlayerName(parsed.name))) throw new Error(`${parsed.name} cannot be added from season-to-date statistics.`);
+    return parsed;
+  });
+  return added.length ? { ...base, players: [...base.players, ...added] } : base;
+}
 const actions = {
   markPick(playerId: string, owner?: 'mine' | 'taken') {
     const manual = state.settings.trackingMode === 'manual';
@@ -138,31 +151,34 @@ const actions = {
   applyYahooEligibility(feed: DraftEligibilityFeed) {
     commit(withYahooEligibility(state, feed, new Date().toISOString()));
   },
-  updateMatchup(input: unknown) {
+  updateMatchup(input: unknown, extras?: Player[]) {
     const result = matchupSchema.safeParse(input);
     if (!result.success) throw new Error(result.error.issues[0]?.message ?? 'Invalid weekly planner settings.');
-    const ids = new Set(state.players.map(p => p.id));
+    const base = withActualsOnly(state, extras);
+    const ids = new Set(base.players.map(p => p.id));
     if ([...result.data.myRosterIds, ...result.data.opponentRosterIds].some(id => !ids.has(id))) throw new Error('A selected player is missing from the projection pool.');
-    commit({ ...state, matchup: result.data });
+    commit({ ...base, matchup: result.data });
   },
-  updateTrades(input: unknown) {
+  updateTrades(input: unknown, extras?: Player[]) {
     const parsed = tradeWorkspaceSchema.safeParse(input);
     if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'Invalid trade workspace.');
     const next = parsed.data;
     if (next.partners.length >= state.settings.teamCount) throw new Error('There cannot be more trade partners than other teams in your league.');
-    const own = new Set(state.matchup?.myRosterIds ?? state.picks.filter(p => p.team === state.settings.myPosition).map(p => p.playerId));
-    const ids = new Set(state.players.map(p => p.id));
+    const base = withActualsOnly(state, extras);
+    const own = new Set(base.matchup?.myRosterIds ?? base.picks.filter(p => p.team === base.settings.myPosition).map(p => p.playerId));
+    const ids = new Set(base.players.map(p => p.id));
     for (const team of next.partners) {
       if (team.rosterIds.some(id => own.has(id) || !ids.has(id))) throw new Error('A partner cannot own your player or a player missing from the pool.');
       if (team.rosterIds.length - team.reserveIds.length > state.settings.rosterSlots.length ||
           team.reserveIds.length > state.settings.injuryReserveSlots) throw new Error('A partner is limited to the league’s regular roster and IL capacity.');
     }
     if (next.lockedPlayerIds.some(id => !ids.has(id))) throw new Error('An untouchable player is missing from the pool.');
-    commit({ ...state, trades: next });
+    commit({ ...base, trades: next });
   },
-  importTradePartner(partnerId: string, rows: LineupImportRow[], ilConfirmed: boolean) {
-    const trades = importTradePartnerRoster(state, partnerId, rows, ilConfirmed);
-    commit({ ...state, trades });
+  importTradePartner(partnerId: string, rows: LineupImportRow[], ilConfirmed: boolean, extras?: Player[]) {
+    const base = withActualsOnly(state, extras);
+    const trades = importTradePartnerRoster(base, partnerId, rows, ilConfirmed);
+    commit({ ...base, trades });
   },
   applyInjuries(reports: { name: string; status: string; note: string; updatedAt?: string; source: string; returnDate?: string }[], checkedAt: string, reportUpdatedAt?: string) {
     if (state.source.isDemo) throw new Error('Load current projections before checking injuries. Demo identities are not verified.');

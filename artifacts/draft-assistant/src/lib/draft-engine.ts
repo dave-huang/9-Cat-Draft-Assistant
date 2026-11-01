@@ -79,7 +79,10 @@ function balancedValue(z: CategoryValues) {
 }
 
 export function analyzeDraft(state: DraftState): DraftAnalysis {
-  const { settings, players, picks } = state;
+  // Players with actual games but no projection are weekly/trade-only; they must
+  // never affect draft rankings or the stable draftable-pool baselines.
+  const { settings, picks } = state;
+  const players = state.players.filter(p => !p.actualsOnly);
   const byId = new Map(players.map(p => [p.id, p]));
   const draftedIds = new Set(picks.map(p => p.playerId));
   const roster = picks.filter(p => p.team === settings.myPosition).map(p => byId.get(p.playerId)!).filter(Boolean);

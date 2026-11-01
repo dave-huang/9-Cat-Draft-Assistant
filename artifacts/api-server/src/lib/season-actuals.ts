@@ -5,13 +5,24 @@ const keys = { points: '0', blocks: '1', steals: '2', assists: '3', rebounds: '6
   fgm: '13', fga: '14', ftm: '15', fta: '16', threes: '17' } as const;
 type Obj = Record<string, unknown>;
 const object = (v: unknown): Obj => v && typeof v === 'object' && !Array.isArray(v) ? v as Obj : {};
+const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'] as const;
+
+/** ESPN pro-team id -> abbreviation. Empty when the metadata is missing or incomplete. */
+function teamAbbreviations(teamsPayload: unknown): Map<number, string> {
+  const teams = new Map(
+    (Array.isArray(object(object(teamsPayload).settings).proTeams) ? object(object(teamsPayload).settings).proTeams as unknown[] : [])
+      .map(v => [Number(object(v).id), typeof object(v).abbrev === 'string' ? (object(v).abbrev as string).slice(0, 15) : ''] as const),
+  );
+  return teams.size >= 30 ? teams : new Map();
+}
 
 /** ESPN fantasy's source=0, split=0, period=0 is regular-season actual totals.
  * Never use source=1 forecasts, historical seasons, daily splits or rounded percentages.
  * No positive-GP coverage minimum: an opening-night or preseason feed can be valid.
  */
-export function parseSeasonActuals(payload: unknown, season: number, fetchedAt: string): SeasonActualsFeed {
+export function parseSeasonActuals(payload: unknown, season: number, fetchedAt: string, teamsPayload?: unknown): SeasonActualsFeed {
   const root = object(payload);
+  const teams = teamAbbreviations(teamsPayload);
   if (!Array.isArray(root.players) || root.players.length < 150 || root.players.length > 3000)
     throw new Error('Current-season actual-stat player coverage is incomplete.');
   const players: SeasonActualsPlayer[] = [];
@@ -42,7 +53,14 @@ export function parseSeasonActuals(payload: unknown, season: number, fetchedAt: 
     if (Object.values(line).some(n => !Number.isFinite(n) || n > 100) ||
         line.fgm > line.fga || line.ftm > line.fta || line.threes > line.fgm)
       throw new Error('Actual-stat shooting totals are inconsistent.');
-    players.push({ id, name, gamesPlayed: Number(gp), ...line });
+    // Team and positions let a player with real games but no projection be
+    // added to a roster. Both are omitted (never guessed) when ESPN lacks them.
+    const team = teams.get(Number(p.proTeamId));
+    const positions = [...new Set((Array.isArray(p.eligibleSlots) ? p.eligibleSlots : [])
+      .filter((slot): slot is number => Number.isInteger(slot) && slot >= 0 && slot <= 4)
+      .map(slot => POSITIONS[slot]!))];
+    players.push({ id, name, gamesPlayed: Number(gp), ...line,
+      ...(team ? { team } : {}), ...(positions.length ? { positions } : {}) });
   }
   if (currentProfiles < 150) throw new Error('Current-season full-season actual-stat coverage could not be verified.');
   return GetSeasonActualsResponse.parse({
@@ -60,9 +78,12 @@ export function createSeasonActualsService(fetcher: typeof fetch = fetch) {
     const season = nbaSeasonEnd();
     const filter = { players: { limit: 700, filterStatsForTopScoringPeriodIds: { value: 5, additionalValue: [`00${season}`] },
       sortDraftRanks: { sortPriority: 100, sortAsc: true, value: 'STANDARD' } } };
-    const payload = await providerJson(
-      `https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/${season}/segments/0/leaguedefaults/3?view=kona_player_info`,
-      fetcher, { 'X-Fantasy-Filter': JSON.stringify(filter) });
-    return parseSeasonActuals(payload, season, new Date().toISOString());
+    const base = `https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/${season}`;
+    const [payload, teamsPayload] = await Promise.all([
+      providerJson(`${base}/segments/0/leaguedefaults/3?view=kona_player_info`, fetcher, { 'X-Fantasy-Filter': JSON.stringify(filter) }),
+      // Team names are optional enrichment: if unavailable, the stat feed still works.
+      providerJson(`${base}?view=proTeamSchedules_wl`, fetcher).catch(() => undefined),
+    ]);
+    return parseSeasonActuals(payload, season, new Date().toISOString(), teamsPayload);
   });
 }

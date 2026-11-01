@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useDraft } from './use-draft';
+import { useActualsCandidates } from './use-actuals-candidates';
 import { useDraftData } from './use-draft-data';
 import { recommendTrades, type TradeScan } from '@/lib/trade-engine';
 import type { TradePartner, TradeWorkspace } from '@/lib/draft-types';
@@ -11,6 +12,7 @@ export function useTrades() {
   const draft = useDraft();
   const dataStatus = useDraftData();
   const { state } = draft;
+  const candidates = useActualsCandidates();
   const workspace = state.trades ?? EMPTY;
   const ownIds = state.matchup?.myRosterIds ?? state.picks.filter(p => p.team === state.settings.myPosition).map(p => p.playerId);
   const reserveIds = state.matchup?.myReserveIds ?? [];
@@ -20,20 +22,23 @@ export function useTrades() {
   const [scan, setScan] = useState<{ key: string; result: TradeScan } | null>(null);
   const key = useMemo(() => JSON.stringify([state.players, state.source, state.settings, ownIds, reserveIds, workspace]), [state.players, state.source, state.settings, ownIds.join(','), reserveIds.join(','), workspace]);
   const result = scan?.key === key ? scan.result : undefined;
-  const update = (next: TradeWorkspace) => draft.updateTrades(next);
+  const update = (next: TradeWorkspace) => {
+    const used = new Set(next.partners.flatMap(p => p.rosterIds));
+    draft.updateTrades(next, candidates.filter(p => used.has(p.id)));
+  };
   const changePartner = (id: string, change: (p: TradePartner) => TradePartner) => {
     if (!workspace.partners.some(p => p.id === id)) throw new Error('Select a saved trade partner first.');
     update({ ...workspace, partners: workspace.partners.map(p => p.id === id ? change(p) : p) });
   };
   return {
-    draft, dataStatus, workspace, mine, reserveIds, partners, busy, result,
+    draft, dataStatus, candidates, workspace, mine, reserveIds, partners, busy, result,
     stale: !!scan && scan.key !== key,
     ownRosterSource: state.matchup ? 'Weekly roster' : 'Draft roster',
     availablePlayers(partnerId: string, search: string) {
       const excluded = new Set([...ownIds, ...workspace.partners.flatMap(p => p.rosterIds)]);
       if (!partnerId || !search.trim()) return [];
       const term = search.trim().toLocaleLowerCase();
-      return state.players.filter(p => !excluded.has(p.id) && p.name.toLocaleLowerCase().includes(term)).slice(0, 12);
+      return [...state.players, ...candidates].filter(p => !excluded.has(p.id) && p.name.toLocaleLowerCase().includes(term)).slice(0, 12);
     },
     addPartner(name: string) {
       const id = crypto.randomUUID();
@@ -57,7 +62,8 @@ export function useTrades() {
       changePartner(partnerId, p => ({ ...p, rosterIds: [...opponent.opponentRosterIds], reserveIds: [...(opponent.opponentReserveIds ?? [])] }));
     },
     importScreenshot(partnerId: string, rows: LineupImportRow[], ilConfirmed: boolean) {
-      draft.importTradePartner(partnerId, rows, ilConfirmed);
+      const used = new Set(rows.filter(r => !r.skip).map(r => r.playerId));
+      draft.importTradePartner(partnerId, rows, ilConfirmed, candidates.filter(p => used.has(p.id)));
     },
     toggleLocked(id: string) {
       if (!ownIds.includes(id)) throw new Error('Only your players can be marked untouchable.');
