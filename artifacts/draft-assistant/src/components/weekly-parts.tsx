@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { X } from 'lucide-react';
 import { Notice, btn, errMsg, field, fmt } from '@/components/bits';
 import type { Player } from '@/lib/draft-types';
 import type { WeeklyPlayer } from '@/lib/weekly-engine';
@@ -61,6 +62,7 @@ export function CompactRow({ row, side, handle, onRemove, onGames, onPositions, 
   const p = row.player;
   const [draft, setDraft] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const act = (fn: () => void) => { try { fn(); onError(''); } catch (e) { onError(errMsg(e)); } };
   const commit = () => {
     if (draft === null) return;
@@ -94,6 +96,14 @@ export function CompactRow({ row, side, handle, onRemove, onGames, onPositions, 
         </label>
         {row.override && !row.reserve && <button type="button" className="text-[11px] font-semibold underline" data-testid={`button-reset-games-${p.id}`} onClick={() => act(() => onGames(undefined))}>Reset</button>}
         <button type="button" className="min-h-7 shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details for ${p.name}`} data-testid={`button-details-${side}-${p.id}`} onClick={() => setOpen(o => !o)}>{open ? 'Hide' : 'Details'}</button>
+        {confirmRemove ? (
+          <span className="flex shrink-0 items-center gap-1" data-testid={`confirm-quick-remove-${side}-${p.id}`}>
+            <button type="button" autoFocus className="min-h-7 rounded border border-destructive bg-destructive px-1.5 py-0.5 text-[11px] font-semibold text-destructive-foreground" data-testid={`button-quick-remove-yes-${side}-${p.id}`} onClick={() => { setConfirmRemove(false); act(onRemove); }}>Remove</button>
+            <button type="button" className="min-h-7 rounded border px-1.5 py-0.5 text-[11px] font-medium hover:bg-secondary" onClick={() => setConfirmRemove(false)}>Cancel</button>
+          </span>
+        ) : (
+          <button type="button" className="flex min-h-7 w-7 shrink-0 items-center justify-center rounded border text-muted-foreground hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring" aria-label={`Remove ${p.name} from roster`} title="Remove from roster" data-testid={`button-quick-remove-${side}-${p.id}`} onClick={() => setConfirmRemove(true)}><X className="h-3.5 w-3.5" aria-hidden /></button>
+        )}
       </div>
       {open && (
         <div className="mb-1.5 space-y-1.5 rounded-md bg-muted/60 p-2 text-xs" data-testid={`details-${side}-${p.id}`}>
