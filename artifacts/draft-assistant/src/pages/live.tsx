@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
-import { Check, RefreshCw, Search, Star, Undo2, X } from 'lucide-react';
+import { Check, Search, Star, Undo2, X } from 'lucide-react';
 import { useDraft } from '@/hooks/use-draft';
 import { useDraftData } from '@/hooks/use-draft-data';
+import { RefreshAllButton } from '@/components/refresh-all-button';
 import type { Player, Position, Recommendation } from '@/lib/draft-types';
 import { btn, ConfirmButton, errMsg, field, fmt, Notice, Panel, ZStrip } from '@/components/bits';
 import { InjuryReserveSlots } from '@/components/InjuryReserveSlots';
@@ -184,7 +185,7 @@ export default function Live() {
         {dd.loadingProjections && <Notice tone="info" testId="text-data-loading">Loading this season’s ESPN projections and injury reports. Your saved picks are kept.</Notice>}
         {dd.error && <Notice tone="error" testId="text-injury-error">Data refresh failed: {dd.error}</Notice>}
         {dd.loadingEligibility && <Notice tone="info" testId="text-eligibility-loading">Checking Yahoo position eligibility. Saved picks and manual corrections are kept.</Notice>}
-        {dd.eligibilityError && <Notice tone="warn" testId="text-eligibility-error">Yahoo eligibility could not be refreshed: {dd.eligibilityError} Saved positions are retained; other sources remain labeled as unverified. <button className="underline" onClick={() => void dd.refreshEligibility()}>Retry Yahoo positions</button></Notice>}
+        {dd.eligibilityError && <Notice tone="warn" testId="text-eligibility-error">Yahoo eligibility could not be refreshed: {dd.eligibilityError} Saved positions are retained; other sources remain labeled as unverified. Use Refresh data to retry.</Notice>}
         {!state.source.isDemo && state.eligibilityFeed && <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground" data-testid="text-yahoo-eligibility">Yahoo eligibility: {state.eligibilityFeed.matchedPlayers}/{state.players.length} matched · {state.players.filter(p => p.positionsVerified).length} manual corrections · checked {new Date(state.eligibilityFeed.checkedAt).toLocaleString()}{state.eligibilityFeed.unmatchedPlayers > 0 && ` · ${state.eligibilityFeed.unmatchedPlayers} unverified`}</div>}
         {state.players.some(p => p.positionsConflict) && <Notice tone="warn" testId="text-position-conflicts">Yahoo eligibility changes would make some drafted players impossible to slot. Your picks and previous positions were kept. Review players labeled “Check Yahoo” on the Roster page.</Notice>}
         {a.warnings.map((w) => <Notice key={w} tone="warn">{w}</Notice>)}
@@ -200,9 +201,7 @@ export default function Live() {
           {src.fetchedAt && <span>/ ESPN snapshot {new Date(src.fetchedAt).toLocaleTimeString()} (up to 15 min cache)</span>}
           <span>/</span>
           <span>{feed ? `Injuries checked ${new Date(feed.checkedAt).toLocaleString()} (${feed.matchedPlayers}/${feed.totalReports} matched)` : 'Injuries never checked. Unreported is not healthy.'}</span>
-          <button className={`${btn.ghost} !py-0.5 text-xs`} disabled={dd.refreshing} onClick={() => { void dd.refreshInjuries(); }} data-testid="button-refresh-injuries">
-            <RefreshCw className={`h-3 w-3 ${dd.refreshing ? 'animate-spin' : ''}`} />{dd.refreshing ? 'Checking' : 'Refresh injuries'}
-          </button>
+          <RefreshAllButton compact />
         </div>
 
         {top && !a.complete && (

@@ -5,6 +5,7 @@ import { PlayerSearch, pct } from '@/components/weekly-parts';
 import { OpponentScreenshotImport } from '@/components/opponent-screenshot-import';
 import { LineupBoard } from '@/components/weekly-lineup-board';
 import { WeeklyStatsBasis } from '@/components/weekly-stats-basis';
+import { RefreshAllButton } from '@/components/refresh-all-button';
 import { useLineupInteraction } from '@/hooks/use-lineup-interaction';
 import type { CategoryKey, Player, Position } from '@/lib/draft-types';
 
@@ -82,30 +83,23 @@ export default function Weekly() {
           <label className="flex items-center gap-1.5 text-xs">To<input type="date" className={`${field} !w-36 !py-1 !text-xs`} data-testid="input-end" value={ev} onChange={e => setEnd(e.target.value)} /></label>
           <button className={`${btn.ghost} !py-1 !text-xs`} disabled={sv === planner.start && ev === planner.end} data-testid="button-apply-dates" onClick={() => run(() => { w.setDates(sv, ev); setStart(null); setEnd(null); })}>Apply dates</button>
           <span className="ml-auto text-[11px] text-muted-foreground">{w.scheduleLoading ? 'Loading schedule…' : schedule ? `${schedule.games.length} scheduled games · ${schedule.season}` : 'Schedule not loaded'}</span>
+          <RefreshAllButton compact />
         </div>
         {(sv !== planner.start || ev !== planner.end) && <p className="mt-2 text-xs font-semibold text-primary">Unapplied dates. Forecast still uses {planner.start} through {planner.end}. Applying dates clears expected-games overrides; rosters stay.</p>}
         <WeeklyStatsBasis basis={w.statsBasis} onChange={basis => run(() => w.setStatsBasis(basis))}
-          actuals={w.actuals} loading={w.statsLoading} refreshing={w.statsRefreshing} error={w.statsError}
-          onRefresh={() => { void w.refreshActuals(); }} projectionSeason={draft.state.source.season}
+          actuals={w.actuals} loading={w.statsLoading} error={w.statsError}
+          projectionSeason={draft.state.source.season}
           projectionLabel={draft.state.source.label} samples={w.statsSamples} demo={demo} />
         <details className="mt-1.5 border-t pt-1.5 text-xs" data-testid="details-data">
-          <summary className="cursor-pointer font-medium text-muted-foreground">Data sources & refresh <span className="ml-2 font-normal">ESPN {w.statsBasis === 'actuals' ? 'actuals' : 'projections'} / injuries · Yahoo positions</span></summary>
+          <summary className="cursor-pointer font-medium text-muted-foreground">Data sources <span className="ml-2 font-normal">ESPN {w.statsBasis === 'actuals' ? 'actuals' : 'projections'} / injuries · Yahoo positions</span></summary>
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground [&>span]:[overflow-wrap:anywhere]" data-testid="text-schedule-meta">
             <span>Applied: {planner.start} through {planner.end}</span>
             {schedule ? <span>{schedule.source} / {schedule.season} / {schedule.games.length} games / fetched {when(schedule.fetchedAt)}</span> : <span>No schedule loaded</span>}
-            <button className={btn.ghost} data-testid="button-refresh-schedule" disabled={w.scheduleRefreshing || !w.validDates} onClick={() => run(() => { void w.refreshSchedule(); })}>
-              {w.scheduleRefreshing ? 'Refreshing...' : w.scheduleError ? 'Retry schedule' : 'Refresh schedule'}
-            </button>
           </div>
           <div className="mt-2 space-y-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
             <p>Projections: {draft.state.source.label} {draft.state.source.season}, checked {when(draft.state.source.checkedAt ?? draft.state.source.fetchedAt ?? draft.state.source.importedAt)}</p>
             <p>Eligibility: {draft.state.eligibilityFeed ? `${draft.state.eligibilityFeed.source}, fetched ${when(draft.state.eligibilityFeed.fetchedAt)}` : 'never loaded'}</p>
             <p>Injuries: {draft.state.injuryFeed ? `checked ${when(draft.state.injuryFeed.checkedAt)}` : 'never checked'}</p>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button className={btn.ghost} data-testid="button-refresh-projections" disabled={ds.loadingProjections} onClick={() => run(() => { void ds.refreshProjections(); })}>{ds.loadingProjections ? 'Loading...' : 'Refresh projections'}</button>
-            <button className={btn.ghost} data-testid="button-refresh-injuries" disabled={ds.refreshing} onClick={() => run(() => { void ds.refreshInjuries(); })}>{ds.refreshing ? 'Checking...' : 'Refresh injuries'}</button>
-            <button className={btn.ghost} data-testid="button-refresh-eligibility" disabled={ds.loadingEligibility} onClick={() => run(() => { void ds.refreshEligibility(); })}>{ds.loadingEligibility ? 'Loading...' : 'Refresh eligibility'}</button>
           </div>
           <p className="mt-2 text-muted-foreground">Snapshots may be cached and stale; verify before locking. Changing dates clears all games overrides; rosters stay.</p>
         </details>

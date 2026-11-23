@@ -175,7 +175,7 @@ export function analyzeDraft(state: DraftState): DraftAnalysis {
   const warnings: string[] = [];
   if (state.source.isDemo) warnings.push('Illustrative demo data only. Import verified season projections before using recommendations in a real draft.');
   if (!state.source.isDemo && state.source.fetchedAt && Date.now() - Date.parse(state.source.fetchedAt) > 24 * 60 * 60 * 1000) warnings.push('Projections were last retrieved over 24 hours ago. Refresh the player data in Settings before drafting.');
-  if (state.injuryFeed && Date.now() - Date.parse(state.injuryFeed.checkedAt) > 15 * 60 * 1000) warnings.push('Injury checks are over 15 minutes old. Refresh injuries; unreported does not mean healthy.');
+  if (state.injuryFeed && Date.now() - Date.parse(state.injuryFeed.checkedAt) > 15 * 60 * 1000) warnings.push('Injury checks are over 15 minutes old. Use Refresh data; unreported does not mean healthy.');
   if (players.length < totalPicks) warnings.push(`The player pool has ${players.length} players for ${totalPicks} draft picks. Import a larger pool.`);
   const rareMissing = [...new Set(unmetSlots)].filter(slot => (opportunities.get(slot) ?? 0) === 0);
   if (rareMissing.length) warnings.push(`No undrafted player can fill ${rareMissing.join(', ')}. Check imported Yahoo eligibility.`);

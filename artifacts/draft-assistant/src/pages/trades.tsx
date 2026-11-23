@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
-import { Lock, LockOpen, RefreshCw } from 'lucide-react';
+import { Lock, LockOpen } from 'lucide-react';
 import { Notice, Panel, btn, errMsg, field } from '@/components/bits';
 import { TradeIdeaCard } from '@/components/trade-idea-card';
 import { TradePartnerEditor } from '@/components/trade-partner-editor';
+import { RefreshAllButton } from '@/components/refresh-all-button';
 import { useTrades } from '@/hooks/use-trades';
 
 const when = (s?: string) => (s ? new Date(s).toLocaleString() : 'unknown');
@@ -30,7 +31,6 @@ export default function Trades() {
     setSelected(t.addPartner(newName)); setNewName('');
   });
   const generate = async () => { try { setError(''); await t.generate(); } catch (e) { setError(errMsg(e)); } };
-  const refresh = async () => { try { await ds.refreshProjections(); } catch (e) { setError(errMsg(e)); } };
   const src = state.source;
   const ownIl = new Set(reserveIds);
   const noTeam = !mine.length;
@@ -47,9 +47,9 @@ export default function Trades() {
           Your team is empty. Add your roster on <Link href="/weekly" className="underline">Weekly</Link> (or draft players on <Link href="/" className="underline">Live draft</Link>), then save partner rosters here.
         </Notice>
       )}
-      {src.isDemo && <Notice tone="warn">Demo players loaded. Refresh player data before evaluating real trades.</Notice>}
+      {src.isDemo && <Notice tone="warn">Demo players loaded. Use Refresh data to load real players before evaluating trades.</Notice>}
 
-      <Panel title="Player data" aside={<button type="button" className={btn.ghost} disabled={ds.loadingProjections} onClick={refresh} data-testid="button-trade-refresh"><RefreshCw className={`h-3.5 w-3.5 ${ds.loadingProjections ? 'animate-spin' : ''}`} />{ds.loadingProjections ? 'Refreshing...' : 'Refresh player data'}</button>}>
+      <Panel title="Player data" aside={<RefreshAllButton />}>
         <dl className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2" data-testid="trade-source">
           <div><dt className="inline text-muted-foreground">Projections: </dt><dd className="inline">{src.label} ({src.season}), fetched {when(src.fetchedAt ?? src.importedAt)}</dd></div>
           <div><dt className="inline text-muted-foreground">Injuries checked: </dt><dd className="inline">{when(state.injuryFeed?.checkedAt)}</dd></div>

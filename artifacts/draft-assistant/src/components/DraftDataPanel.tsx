@@ -1,7 +1,8 @@
-import { RefreshCw, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { useDraft } from '@/hooks/use-draft';
 import { useDraftData } from '@/hooks/use-draft-data';
-import { btn, Notice, Panel } from './bits';
+import { Notice, Panel } from './bits';
+import { RefreshAllButton } from './refresh-all-button';
 
 export function DraftDataPanel() {
   const d = useDraft();
@@ -24,12 +25,7 @@ export function DraftDataPanel() {
         <dt className="text-muted-foreground">Position overrides</dt><dd>{d.state.players.filter(p => p.positionsVerified).length} manual · {d.state.players.filter(p => p.positionsConflict).length} conflicts · {eligibilityFeed?.unmatchedPlayers ?? d.state.players.length} unmatched</dd>
       </dl>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className={btn.primary} disabled={busy || (source.isDemo && d.state.picks.length > 0)} data-testid="button-refresh-projections" onClick={() => {
-          if (!source.isDemo && source.provider !== 'ESPN' && !window.confirm('Replace imported stats with ESPN projections? Existing picks and manual position corrections are kept. Yahoo eligibility is applied separately. Export a backup first if you want to retain imported stats.')) return;
-          void data.refreshProjections();
-        }}><RefreshCw className={`h-4 w-4 ${data.loadingProjections ? 'animate-spin' : ''}`} />{data.loadingProjections ? 'Loading current data…' : source.provider === 'ESPN' ? 'Refresh all player data' : 'Load season data + Yahoo positions'}</button>
-        <button className={btn.ghost} disabled={busy || source.isDemo} data-testid="button-data-injuries" onClick={() => void data.refreshInjuries()}>Refresh injuries only</button>
-        <button className={btn.ghost} disabled={busy || source.isDemo} data-testid="button-data-eligibility" onClick={() => void data.refreshEligibility()}>{data.loadingEligibility ? 'Checking Yahoo positions…' : 'Refresh Yahoo positions only'}</button>
+        <RefreshAllButton primary />
       </div>
       {data.error && <div className="mt-3"><Notice tone="error" testId="text-feed-error">{data.error}</Notice></div>}
       {data.eligibilityError && <div className="mt-3"><Notice tone="warn" testId="text-feed-eligibility-error">Yahoo eligibility: {data.eligibilityError} Previous positions and all picks were kept.</Notice></div>}

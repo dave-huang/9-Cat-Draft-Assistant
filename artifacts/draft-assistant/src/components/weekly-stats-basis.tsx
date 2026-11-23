@@ -1,5 +1,4 @@
 import type { SeasonActualsFeed } from '@workspace/api-client-react';
-import { btn } from '@/components/bits';
 
 type Basis = 'projections' | 'actuals';
 type Sample = { id: string; name: string; basis: Basis; gamesPlayed?: number; fallbackReason?: string };
@@ -9,9 +8,7 @@ export interface WeeklyStatsBasisProps {
   onChange: (basis: Basis) => void;
   actuals?: SeasonActualsFeed;
   loading: boolean;
-  refreshing: boolean;
   error: string | null;
-  onRefresh: () => void;
   projectionSeason: string;
   projectionLabel: string;
   samples: Sample[];
@@ -24,14 +21,13 @@ const when = (s?: string) => {
   return Number.isNaN(d.getTime()) ? 'unknown' : d.toLocaleString();
 };
 
-export function WeeklyStatsBasis({ basis, onChange, actuals, loading, refreshing, error, onRefresh, projectionSeason, projectionLabel, samples, demo }: WeeklyStatsBasisProps) {
+export function WeeklyStatsBasis({ basis, onChange, actuals, loading, error, projectionSeason, projectionLabel, samples, demo }: WeeklyStatsBasisProps) {
   const isActuals = basis === 'actuals';
   const used = samples.filter(s => s.basis === 'actuals');
   const fallbacks = samples.filter(s => s.basis !== 'actuals');
   const early = used.filter(s => (s.gamesPlayed ?? 0) < 10);
   const seg = (active: boolean) =>
     `rounded px-2 py-1 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-40 disabled:pointer-events-none ${active ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary'}`;
-  const busy = loading || refreshing;
 
   return (
     <div className="mt-1.5 border-t pt-1.5 text-xs" data-testid="section-stats-basis">
@@ -41,11 +37,6 @@ export function WeeklyStatsBasis({ basis, onChange, actuals, loading, refreshing
           <button type="button" className={seg(!isActuals)} aria-pressed={!isActuals} data-testid="button-basis-projections" onClick={() => onChange('projections')}>Season projections</button>
           <button type="button" className={seg(isActuals)} aria-pressed={isActuals} disabled={demo} title={demo ? 'Unavailable in demo mode' : undefined} data-testid="button-basis-actuals" onClick={() => onChange('actuals')}>Season-to-date averages</button>
         </div>
-        {isActuals && !demo && (
-          <button type="button" className={`${btn.ghost} !py-1 !text-xs`} disabled={busy} data-testid="button-refresh-actuals" onClick={onRefresh}>
-            {busy ? 'Refreshing...' : error ? 'Retry actuals' : 'Refresh actuals'}
-          </button>
-        )}
         <span className="ml-auto text-[11px] text-muted-foreground" data-testid="text-basis-active">
           {isActuals ? `Using ${actuals?.season ?? 'current'} season-to-date averages` : `Using ${projectionSeason} season projections`}
         </span>
@@ -64,7 +55,7 @@ export function WeeklyStatsBasis({ basis, onChange, actuals, loading, refreshing
           {loading && !actuals && <p role="status">Loading season-to-date averages...</p>}
           {error && (
             <p role="alert" className="font-medium text-destructive" data-testid="text-actuals-error">
-              Could not load season-to-date averages: {error}. Estimates are disabled until you retry or switch back to season projections.
+              Could not load season-to-date averages: {error}. Estimates are disabled until Refresh data succeeds or you switch back to season projections.
             </p>
           )}
           {!error && actuals && (
